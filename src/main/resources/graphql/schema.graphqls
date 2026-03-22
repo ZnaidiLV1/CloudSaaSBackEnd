@@ -1,0 +1,35 @@
+type AuthPayload {
+    token: String
+    role: String
+    email: String
+    message: String
+}
+
+type UserPayload {
+    id: ID!
+    email: String!
+    role: String!
+}
+
+type CreationPayload{
+    email:String!
+    message:String!
+}
+
+type User {
+    id: ID!
+    email: String!
+    role: String!
+}
+
+type Mutation {
+    login(email: String!, password: String!): AuthPayload!
+    verifyOtp(email: String!,otp: String!):AuthPayload!
+    createUser(email: String!,role:String!):CreationPayload!
+
+}
+
+type Query {
+    me: User!
+    getAllUsers:[UserPayload!]!
+}
