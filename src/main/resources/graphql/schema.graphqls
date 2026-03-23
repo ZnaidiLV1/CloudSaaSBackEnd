@@ -26,7 +26,11 @@ type Mutation {
     login(email: String!, password: String!): AuthPayload!
     verifyOtp(email: String!,otp: String!):AuthPayload!
     createUser(email: String!,role:String!):CreationPayload!
-
+    requestPasswordChange(currentPassword:String!):AuthPayload!
+    confirmPasswordChange(otp:String!,newPassword:String!):AuthPayload!
+    forgetPassword(email:String!):AuthPayload!
+    resetPassword(email: String!, otp: String!, newPassword: String!): AuthPayload!
+    logout:AuthPayload!
 }
 
 type Query {
