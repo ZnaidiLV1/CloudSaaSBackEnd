@@ -31,4 +31,28 @@ public class EmailService {
         );
         mailSender.send(message);
     }
+    public void sendPasswordChangeOtp(String email,String otp){
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(email);
+        message.setSubject("CloudSaaS - Password Change Verification");
+        message.setText(
+                "You requested a password change.\n\n" +
+                        "Your verification code is: " + otp + "\n\n" +
+                        "This code expires in 5 minutes.\n" +
+                        "If you did not request this, your account may be compromised."
+        );
+        mailSender.send(message);
+    }
+    public void sendForgotPasswordOtp(String toEmail, String otp) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(toEmail);
+        message.setSubject("CloudSaaS - Password Reset");
+        message.setText(
+                "You requested a password reset.\n\n" +
+                        "Your reset code is: " + otp + "\n\n" +
+                        "This code expires in 5 minutes.\n" +
+                        "If you did not request this, ignore this email."
+        );
+        mailSender.send(message);
+    }
 }

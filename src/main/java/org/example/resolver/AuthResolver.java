@@ -1,5 +1,6 @@
 package org.example.resolver;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.*;
 import org.example.entity.User;
@@ -36,6 +37,41 @@ public class AuthResolver {
         return authService.createUser(email,role);
     }
 
+    @MutationMapping
+    @PreAuthorize("isAuthenticated()")
+    public AuthPayload requestPasswordChange(@Argument String currentPassword){
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return authService.requestPasswordChange(auth.getName(),currentPassword);
+    }
+
+    @MutationMapping
+    @PreAuthorize("isAuthenticated()")
+    public AuthPayload confirmPasswordChange(@Argument String otp,@Argument String newPassword){
+        Authentication auth =SecurityContextHolder.getContext().getAuthentication();
+        return authService.confirmPasswordChange(otp,auth.getName(),newPassword);
+    }
+
+    @MutationMapping
+    @PreAuthorize("isAuthenticated()")
+    public AuthPayload logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        String token = authHeader.substring(7);
+        return authService.logout(token);
+    }
+
+    @MutationMapping
+    public AuthPayload forgotPassword(@Argument String email) {
+        return authService.forgotPassword(email);
+    }
+
+    @MutationMapping
+    public AuthPayload resetPassword(
+            @Argument String email,
+            @Argument String otp,
+            @Argument String newPassword) {
+        return authService.resetPassword(email, otp, newPassword);
+    }
+
     @QueryMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public List<UserPayload> getAllUsers() {
@@ -49,4 +85,6 @@ public class AuthResolver {
         return userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
+
+
 }
