@@ -205,8 +205,8 @@ public class AuthService {
             throw new RuntimeException("Invalid reset code");
         }
 
-        if (newPassword.length() < 8) {
-            throw new RuntimeException("Password must be at least 8 characters");
+        if (newPassword.length() < 6) {
+            throw new RuntimeException("Password must be at least 6 characters");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));

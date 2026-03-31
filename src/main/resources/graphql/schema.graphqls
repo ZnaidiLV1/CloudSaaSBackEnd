@@ -31,9 +31,17 @@ type Mutation {
     forgetPassword(email:String!):AuthPayload!
     resetPassword(email: String!, otp: String!, newPassword: String!): AuthPayload!
     logout:AuthPayload!
+    syncAzureInfrastructure:String
+    triggerMetricsSync: String
+    triggerAlertSync: String
+    triggerCostSync: String
 }
 
 type Query {
     me: User!
     getAllUsers:[UserPayload!]!
+    azureResources: [String]
+    getAllProjectTags:[String]
+    testAzureConnection: String
+
 }
