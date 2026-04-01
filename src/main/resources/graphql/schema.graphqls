@@ -1,3 +1,4 @@
+# ===== AUTH TYPES =====
 type AuthPayload {
     token: String
     role: String
@@ -11,9 +12,9 @@ type UserPayload {
     role: String!
 }
 
-type CreationPayload{
-    email:String!
-    message:String!
+type CreationPayload {
+    email: String!
+    message: String!
 }
 
 type User {
@@ -22,26 +23,55 @@ type User {
     role: String!
 }
 
+# ===== BILLING TYPES =====
+type InvoiceDto {
+    invoiceId: String
+    invoiceName: String
+    status: String
+    invoiceDate: String
+    dueDate: String
+    billingPeriodStart: String
+    billingPeriodEnd: String
+    totalAmount: Float
+    amountDue: Float
+    currency: String
+    downloadUrl: String
+}
+
+# ===== MUTATIONS =====
 type Mutation {
+    # Auth
     login(email: String!, password: String!): AuthPayload!
-    verifyOtp(email: String!,otp: String!):AuthPayload!
-    createUser(email: String!,role:String!):CreationPayload!
-    requestPasswordChange(currentPassword:String!):AuthPayload!
-    confirmPasswordChange(otp:String!,newPassword:String!):AuthPayload!
-    forgetPassword(email:String!):AuthPayload!
+    verifyOtp(email: String!, otp: String!): AuthPayload!
+    createUser(email: String!, role: String!): CreationPayload!
+    requestPasswordChange(currentPassword: String!): AuthPayload!
+    confirmPasswordChange(otp: String!, newPassword: String!): AuthPayload!
+    forgetPassword(email: String!): AuthPayload!
     resetPassword(email: String!, otp: String!, newPassword: String!): AuthPayload!
-    logout:AuthPayload!
-    syncAzureInfrastructure:String
+    logout: AuthPayload!
+
+    # Azure Sync
+    syncAzureInfrastructure: String
     triggerMetricsSync: String
     triggerAlertSync: String
     triggerCostSync: String
+
+    # Invoice
+    saveLatestInvoices:String
 }
 
+# ===== QUERIES =====
 type Query {
+    # Auth
     me: User!
-    getAllUsers:[UserPayload!]!
+    getAllUsers: [UserPayload!]!
+
+    # Azure
     azureResources: [String]
-    getAllProjectTags:[String]
+    getAllProjectTags: [String]
     testAzureConnection: String
+
+    # Billing
+    invoicesForMonth(year: Int!, month: Int!): [InvoiceDto]
 
 }

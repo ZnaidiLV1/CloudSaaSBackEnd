@@ -1,7 +1,5 @@
 package org.example.service;
 
-import com.azure.identity.ClientSecretCredential;
-import com.azure.core.management.profile.AzureProfile;
 import com.azure.resourcemanager.alertsmanagement.AlertsManagementManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +8,6 @@ import org.example.entity.Vm;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,13 +15,10 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class AzureAlertService {
-
-    private final ClientSecretCredential credential;
-    private final AzureProfile azureProfile;
+    private final AlertsManagementManager manager;
 
     public List<AzureAlert> fetchLastTwoHoursAlerts(Vm vm) {
-        AlertsManagementManager manager = AlertsManagementManager
-                .authenticate(credential, azureProfile);
+
 
         LocalDateTime from = LocalDateTime.now().minusHours(2);
         List<AzureAlert> result = new ArrayList<>();

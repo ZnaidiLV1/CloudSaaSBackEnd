@@ -105,6 +105,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- .env-->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
+
         <!-- Azure dependencies-->
         <dependency>
             <groupId>com.azure</groupId>
@@ -134,6 +141,24 @@
             <groupId>com.azure.resourcemanager</groupId>
             <artifactId>azure-resourcemanager-alertsmanagement</artifactId>
             <version>1.0.0-beta.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.azure.resourcemanager</groupId>
+            <artifactId>azure-resourcemanager-billing</artifactId>
+            <version>1.0.0-beta.3</version>
+        </dependency>
+
+
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
     </dependencies>

@@ -1,16 +1,21 @@
 package org.example.config;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.core.management.AzureEnvironment;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.resourcemanager.alertsmanagement.AlertsManagementManager;
+import com.azure.resourcemanager.billing.BillingManager;
 import com.azure.resourcemanager.costmanagement.CostManagementManager;
 import com.azure.monitor.query.MetricsQueryClient;
 import com.azure.monitor.query.MetricsQueryClientBuilder;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
 
 @Configuration
 public class AzureConfig {
@@ -65,5 +70,21 @@ public class AzureConfig {
             AzureProfile profile) {
         return CostManagementManager
                 .authenticate(credential, profile);
+    }
+
+    @Bean
+    public AlertsManagementManager alertsManagementManager(
+            ClientSecretCredential credential,
+            AzureProfile profile) {
+        return AlertsManagementManager
+                .authenticate(credential, profile);
+    }
+
+    @Bean
+    public BillingManager billingManager(
+            ClientSecretCredential credential,
+            AzureProfile profile
+    ) {
+        return BillingManager.authenticate(credential, profile);
     }
 }

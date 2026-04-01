@@ -28,7 +28,6 @@ public class AlertService {
                         azureAlertService.fetchLastTwoHoursAlerts(vm);
 
                 for (AzureAlert alert : fetched) {
-                    // skip if already saved
                     if (alertRepository.existsByAzureAlertId(
                             alert.getAzureAlertId())) {
                         log.debug("Alert {} already exists, skipping",

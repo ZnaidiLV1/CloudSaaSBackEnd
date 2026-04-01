@@ -33,7 +33,7 @@ public class VmService {
             try {
                 log.info("Processing VM: {} in Resource Group: {}", azureVm.name(), azureVm.resourceGroupName());
 
-                // Find or create VM
+
                 Vm vm = vmRepository.findByAzureVmId(azureVm.id())
                         .orElse(Vm.builder()
                                 .azureVmId(azureVm.id())
