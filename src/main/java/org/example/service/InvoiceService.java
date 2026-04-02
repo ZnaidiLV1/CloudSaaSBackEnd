@@ -147,7 +147,7 @@ public class InvoiceService {
             }
 
 
-            
+
             result.add(
                     InvoiceDto.builder()
                             .invoiceId(textOrNull(inv, "name"))

@@ -1,4 +1,4 @@
-# ===== AUTH TYPES =====
+# AUTH TYPES
 type AuthPayload {
     token: String
     role: String
@@ -23,7 +23,7 @@ type User {
     role: String!
 }
 
-# ===== BILLING TYPES =====
+#  BILLING TYPES 
 type InvoiceDto {
     invoiceId: String
     invoiceName: String
@@ -38,7 +38,22 @@ type InvoiceDto {
     downloadUrl: String
 }
 
-# ===== MUTATIONS =====
+type TestCostResult {
+    meterName: String!
+    serviceName: String!
+    cost: Float!
+}
+
+type ScheduleMap {
+    performance: String!
+    cost: String!
+    invoice: String!
+    infra: String!
+    alert: String!
+    monthlyCost: String!
+}
+
+#  MUTATIONS 
 type Mutation {
     # Auth
     login(email: String!, password: String!): AuthPayload!
@@ -58,9 +73,15 @@ type Mutation {
 
     # Invoice
     saveLatestInvoices:String
+
+    # MonthlyCost
+    testFetchMonth(year: Int!, month: Int!): [TestCostResult!]!
+    syncLastMonthCosts:String
+
+    updateScheduler(task: String!, cronExpression: String!): String!
 }
 
-# ===== QUERIES =====
+#  QUERIES 
 type Query {
     # Auth
     me: User!
@@ -74,4 +95,6 @@ type Query {
     # Billing
     invoicesForMonth(year: Int!, month: Int!): [InvoiceDto]
 
+    # Scheduler
+    getAllSchedules: ScheduleMap!
 }

@@ -4,7 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
-import org.example.service.PerformanceService;
+import org.example.service.MonthlyCostSyncService;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
@@ -14,22 +14,22 @@ import java.util.concurrent.ScheduledFuture;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class PerformanceScheduler {
+public class MonthlyCostScheduler {
 
-    private final PerformanceService performanceService;
+    private final MonthlyCostSyncService monthlyCostSyncService;
     private final TaskScheduler taskScheduler;
     private final SchedulerConfig schedulerConfig;
     private ScheduledFuture<?> scheduledTask;
 
-    public void initialize(){
-        String cron=schedulerConfig.getPerformanceCron();
-        log.info("Initializing performanceScheduler with cron: {}", cron);
+    public void initialize() {
+        String cron = schedulerConfig.getMonthlyCostCron();
+        log.info("Initializing MonthlyCostScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
 
     public void executeTask() {
-        log.info("PerformanceScheduler — syncing metrics...");
-        performanceService.syncMetricsFromAzure();
+        log.info("MonthlyCostScheduler — monthly cost launching...");
+        monthlyCostSyncService.syncLastMonthCosts();
     }
 
     public void scheduleTask(String cron) {
@@ -46,7 +46,7 @@ public class PerformanceScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setPerformanceCron(newCron);
+        schedulerConfig.setMonthlyCostCron(newCron);
         scheduleTask(newCron);
     }
 }
