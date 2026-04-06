@@ -149,6 +149,20 @@
             <version>1.0.0-beta.3</version>
         </dependency>
 
+        <!-- Azure Resource Manager Reservations -->
+        <dependency>
+            <groupId>com.azure.resourcemanager</groupId>
+            <artifactId>azure-resourcemanager-reservations</artifactId>
+            <version>1.0.0-beta.3</version>
+        </dependency>
+
+        <!-- Azure Core Management -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-core-management</artifactId>
+            <version>1.14.0</version>
+        </dependency>
+
 
 
         <dependency>

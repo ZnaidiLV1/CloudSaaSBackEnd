@@ -53,6 +53,42 @@ type ScheduleMap {
     monthlyCost: String!
 }
 
+type MonthlyCost {
+    id: ID!
+    month: Int!
+    year: Int!
+    meterName: String!
+    serviceName: String!
+    cost: Float!
+    vmId: ID
+    isShared: Boolean!
+    resourceCategory: String
+    currency: String!
+    syncedAt: String!
+}
+
+type Reservation {
+    reservationId: String!
+    reservationOrderId: String!
+    displayName: String!
+    vmType: String!
+    term: String!
+    provisioningState: String!
+    expiryDateTime: String
+    purchaseDateTime: String
+}
+
+type AzureAlert {
+    id: ID!
+    azureAlertId: String!
+    alertName: String!
+    severity: String!
+    description: String
+    occurredAt: String!
+    vmId: ID!
+    vmName: String!
+}
+
 #  MUTATIONS 
 type Mutation {
     # Auth
@@ -72,13 +108,26 @@ type Mutation {
     triggerCostSync: String
 
     # Invoice
-    saveLatestInvoices:String
+    savePreviousMonthInvoice: String
+    saveLast12MonthsInvoices: String
+    saveInvoicesFromDateRange(startYear: Int!, startMonth: Int!, endYear: Int!, endMonth: Int!): String
 
     # MonthlyCost
-    testFetchMonth(year: Int!, month: Int!): [TestCostResult!]!
-    syncLastMonthCosts:String
+    syncMonthlyCosts(year: Int!, month: Int!): String!
 
+    # Month VM Cost
+    calculateMonthlyVmCosts(year: Int!, month: Int!): String!
+
+    # Update Scheduler
     updateScheduler(task: String!, cronExpression: String!): String!
+
+    # Update vm Billing Type
+    updateVmBillingType(vmId: ID!, billingType: String!): Boolean!
+
+    # Active Reservation
+    syncActiveReservations: String!
+
+    triggerAlertSyncLast48Hours: String
 }
 
 #  QUERIES 
@@ -97,4 +146,10 @@ type Query {
 
     # Scheduler
     getAllSchedules: ScheduleMap!
+
+    # Monthly Cost
+    monthlyCosts(year: Int!, month: Int!): [MonthlyCost!]!
+    vmCosts(vmId: ID!, year: Int!, month: Int!): [MonthlyCost!]!
+    sharedCosts(year: Int!, month: Int!): [MonthlyCost!]!
+
 }

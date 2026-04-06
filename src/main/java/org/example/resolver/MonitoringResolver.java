@@ -20,7 +20,11 @@ public class MonitoringResolver {
     public final AlertService alertService;
     public final CostService costService;
 
-    public MonitoringResolver(AzureMonitoringService service, AzureResourceManager azureResourceManager, PerformanceService performanceService, AlertService alertService, CostService costService) {
+    public MonitoringResolver(AzureMonitoringService service,
+                              AzureResourceManager azureResourceManager,
+                              PerformanceService performanceService,
+                              AlertService alertService,
+                              CostService costService) {
         this.service = service;
         this.azureResourceManager = azureResourceManager;
         this.performanceService = performanceService;
@@ -29,15 +33,14 @@ public class MonitoringResolver {
     }
 
     @QueryMapping
-    public List<String> getAllProjectTags(){
-        return  service.getAllVMProjectTags();
+    public List<String> getAllProjectTags() {
+        return service.getAllVMProjectTags();
     }
 
     @QueryMapping
     public String testAzureConnection() {
         try {
-            long count = azureResourceManager
-                    .resourceGroups().list().stream().count();
+            long count = azureResourceManager.resourceGroups().list().stream().count();
             return "Connected! Found " + count + " resource groups.";
         } catch (Exception e) {
             return "FAILED: " + e.getMessage();
@@ -57,10 +60,14 @@ public class MonitoringResolver {
     }
 
     @MutationMapping
+    public String triggerAlertSyncLast48Hours() {
+        alertService.syncAlertsLast48HoursFromAzure();
+        return "Alert sync (last 48 hours) triggered";
+    }
+
+    @MutationMapping
     public String triggerCostSync() {
         costService.syncDailyCostsFromAzure();
         return "Cost sync triggered — check DB and logs";
     }
-
-
 }

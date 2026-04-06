@@ -2,6 +2,8 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.example.enums.BillingType;
+
 import java.util.*;
 
 @Entity
@@ -25,6 +27,13 @@ public class Vm {
     private String resourceGroup;
     private String region;
     private String status;
+
+    @Column(name = "vm_type")
+    private String vmType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_type")
+    private BillingType billingType;
 
     @Builder.Default
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})

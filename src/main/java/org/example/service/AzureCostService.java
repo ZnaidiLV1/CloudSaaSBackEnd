@@ -4,6 +4,7 @@ import com.azure.resourcemanager.costmanagement.CostManagementManager;
 import com.azure.resourcemanager.costmanagement.models.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.RawCostRecordDto;
 import org.example.entity.*;
 import org.example.enums.CostType;
 import org.example.repository.*;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +40,286 @@ public class AzureCostService {
 
     // Pattern to extract VM UUID from backup snapshot names (like azurebackup_46404923-8921-48d2-a434-6f470b58f89d_...)
     private static final Pattern BACKUP_VM_UUID_PATTERN = Pattern.compile("azurebackup_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})", Pattern.CASE_INSENSITIVE);
+
+    public List<RawCostRecordDto> getAllRawCostsForDate(LocalDate date) {
+        String scope = "/subscriptions/" + subscriptionId;
+        List<RawCostRecordDto> rawCosts = new ArrayList<>();
+
+        log.info("Fetching ALL raw costs for date: {}", date);
+
+        try {
+            QueryDefinition query = new QueryDefinition()
+                    .withType(ExportType.ACTUAL_COST)
+                    .withTimeframe(TimeframeType.CUSTOM)
+                    .withTimePeriod(new QueryTimePeriod()
+                            .withFrom(date.atStartOfDay().atOffset(ZoneOffset.UTC))
+                            .withTo(date.atTime(23, 59, 59).atOffset(ZoneOffset.UTC)))
+                    .withDataset(new QueryDataset()
+                            .withGranularity(GranularityType.DAILY)
+                            .withAggregation(new HashMap<String, QueryAggregation>() {{
+                                put("totalCost", new QueryAggregation()
+                                        .withName("Cost")
+                                        .withFunction(FunctionType.SUM));
+                            }})
+                            .withGrouping(Arrays.asList(
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ResourceId"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("MeterCategory"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("MeterSubCategory"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("Meter"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ResourceLocation"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("PricingModel"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("BenefitName"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ServiceName"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ServiceTier")
+                            )));
+
+            QueryResult result = costManager.queries().usage(scope, query);
+
+            if (result == null || result.rows() == null) {
+                log.warn("No data returned from Azure for date: {}", date);
+                return rawCosts;
+            }
+
+            Map<String, Integer> columnIndex = new HashMap<>();
+            if (result.columns() != null) {
+                for (int i = 0; i < result.columns().size(); i++) {
+                    columnIndex.put(result.columns().get(i).name(), i);
+                }
+            }
+
+            Integer costIdx = columnIndex.get("Cost");
+            Integer resourceIdIdx = columnIndex.get("ResourceId");
+            Integer meterCategoryIdx = columnIndex.get("MeterCategory");
+            Integer meterSubCategoryIdx = columnIndex.get("MeterSubCategory");
+            Integer meterIdx = columnIndex.get("Meter");
+            Integer resourceLocationIdx = columnIndex.get("ResourceLocation");
+            Integer pricingModelIdx = columnIndex.get("PricingModel");
+            Integer benefitNameIdx = columnIndex.get("BenefitName");
+            Integer serviceNameIdx = columnIndex.get("ServiceName");
+            Integer serviceTierIdx = columnIndex.get("ServiceTier");
+
+            for (List<Object> row : result.rows()) {
+                try {
+                    RawCostRecordDto.RawCostRecordDtoBuilder builder = RawCostRecordDto.builder();
+
+                    if (costIdx != null && row.size() > costIdx) {
+                        BigDecimal cost = BigDecimal.valueOf(parseDouble(row.get(costIdx)));
+                        builder.cost(cost);
+                    }
+                    if (resourceIdIdx != null && row.size() > resourceIdIdx) {
+                        Object val = row.get(resourceIdIdx);
+                        builder.resourceId(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterCategoryIdx != null && row.size() > meterCategoryIdx) {
+                        Object val = row.get(meterCategoryIdx);
+                        builder.meterCategory(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterSubCategoryIdx != null && row.size() > meterSubCategoryIdx) {
+                        Object val = row.get(meterSubCategoryIdx);
+                        builder.meterSubCategory(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterIdx != null && row.size() > meterIdx) {
+                        Object val = row.get(meterIdx);
+                        builder.meterName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (resourceLocationIdx != null && row.size() > resourceLocationIdx) {
+                        Object val = row.get(resourceLocationIdx);
+                        builder.resourceLocation(val != null ? String.valueOf(val) : "");
+                    }
+                    if (pricingModelIdx != null && row.size() > pricingModelIdx) {
+                        Object val = row.get(pricingModelIdx);
+                        builder.pricingModel(val != null ? String.valueOf(val) : "");
+                    }
+                    if (benefitNameIdx != null && row.size() > benefitNameIdx) {
+                        Object val = row.get(benefitNameIdx);
+                        builder.benefitName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (serviceNameIdx != null && row.size() > serviceNameIdx) {
+                        Object val = row.get(serviceNameIdx);
+                        builder.serviceName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (serviceTierIdx != null && row.size() > serviceTierIdx) {
+                        Object val = row.get(serviceTierIdx);
+                        builder.serviceTier(val != null ? String.valueOf(val) : "");
+                    }
+
+                    builder.currency("USD");
+                    builder.date(date.toString());
+
+                    rawCosts.add(builder.build());
+
+                } catch (Exception e) {
+                    log.warn("Error processing raw cost row: {}", e.getMessage());
+                }
+            }
+
+            log.info("Fetched {} raw cost records for date: {}", rawCosts.size(), date);
+
+        } catch (Exception e) {
+            log.error("Failed to fetch raw costs for date: {}", date, e);
+            throw new RuntimeException("Raw cost fetch failed", e);
+        }
+
+        return rawCosts;
+    }
+
+    public List<RawCostRecordDto> getAllRawCostsForDateRange(LocalDate startDate, LocalDate endDate) {
+        String scope = "/subscriptions/" + subscriptionId;
+        List<RawCostRecordDto> rawCosts = new ArrayList<>();
+
+        log.info("Fetching ALL raw costs from {} to {}", startDate, endDate);
+
+        try {
+            QueryDefinition query = new QueryDefinition()
+                    .withType(ExportType.ACTUAL_COST)
+                    .withTimeframe(TimeframeType.CUSTOM)
+                    .withTimePeriod(new QueryTimePeriod()
+                            .withFrom(startDate.atStartOfDay().atOffset(ZoneOffset.UTC))
+                            .withTo(endDate.atTime(23, 59, 59).atOffset(ZoneOffset.UTC)))
+                    .withDataset(new QueryDataset()
+                            .withGranularity(GranularityType.DAILY)
+                            .withAggregation(new HashMap<String, QueryAggregation>() {{
+                                put("totalCost", new QueryAggregation()
+                                        .withName("Cost")
+                                        .withFunction(FunctionType.SUM));
+                            }})
+                            .withGrouping(Arrays.asList(
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ResourceId"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("MeterCategory"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("MeterSubCategory"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("Meter"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ResourceLocation"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("PricingModel"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("BenefitName"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ServiceName"),
+                                    new QueryGrouping()
+                                            .withType(QueryColumnType.DIMENSION)
+                                            .withName("ServiceTier")
+                            )));
+
+            QueryResult result = costManager.queries().usage(scope, query);
+
+            if (result == null || result.rows() == null) {
+                log.warn("No data returned from Azure for date range");
+                return rawCosts;
+            }
+
+            Map<String, Integer> columnIndex = new HashMap<>();
+            if (result.columns() != null) {
+                for (int i = 0; i < result.columns().size(); i++) {
+                    columnIndex.put(result.columns().get(i).name(), i);
+                }
+            }
+
+            Integer costIdx = columnIndex.get("Cost");
+            Integer resourceIdIdx = columnIndex.get("ResourceId");
+            Integer meterCategoryIdx = columnIndex.get("MeterCategory");
+            Integer meterSubCategoryIdx = columnIndex.get("MeterSubCategory");
+            Integer meterIdx = columnIndex.get("Meter");
+            Integer resourceLocationIdx = columnIndex.get("ResourceLocation");
+            Integer pricingModelIdx = columnIndex.get("PricingModel");
+            Integer benefitNameIdx = columnIndex.get("BenefitName");
+            Integer serviceNameIdx = columnIndex.get("ServiceName");
+            Integer serviceTierIdx = columnIndex.get("ServiceTier");
+
+            for (List<Object> row : result.rows()) {
+                try {
+                    RawCostRecordDto.RawCostRecordDtoBuilder builder = RawCostRecordDto.builder();
+
+                    if (costIdx != null && row.size() > costIdx) {
+                        BigDecimal cost = BigDecimal.valueOf(parseDouble(row.get(costIdx)));
+                        builder.cost(cost);
+                    }
+                    if (resourceIdIdx != null && row.size() > resourceIdIdx) {
+                        Object val = row.get(resourceIdIdx);
+                        builder.resourceId(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterCategoryIdx != null && row.size() > meterCategoryIdx) {
+                        Object val = row.get(meterCategoryIdx);
+                        builder.meterCategory(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterSubCategoryIdx != null && row.size() > meterSubCategoryIdx) {
+                        Object val = row.get(meterSubCategoryIdx);
+                        builder.meterSubCategory(val != null ? String.valueOf(val) : "");
+                    }
+                    if (meterIdx != null && row.size() > meterIdx) {
+                        Object val = row.get(meterIdx);
+                        builder.meterName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (resourceLocationIdx != null && row.size() > resourceLocationIdx) {
+                        Object val = row.get(resourceLocationIdx);
+                        builder.resourceLocation(val != null ? String.valueOf(val) : "");
+                    }
+                    if (pricingModelIdx != null && row.size() > pricingModelIdx) {
+                        Object val = row.get(pricingModelIdx);
+                        builder.pricingModel(val != null ? String.valueOf(val) : "");
+                    }
+                    if (benefitNameIdx != null && row.size() > benefitNameIdx) {
+                        Object val = row.get(benefitNameIdx);
+                        builder.benefitName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (serviceNameIdx != null && row.size() > serviceNameIdx) {
+                        Object val = row.get(serviceNameIdx);
+                        builder.serviceName(val != null ? String.valueOf(val) : "");
+                    }
+                    if (serviceTierIdx != null && row.size() > serviceTierIdx) {
+                        Object val = row.get(serviceTierIdx);
+                        builder.serviceTier(val != null ? String.valueOf(val) : "");
+                    }
+
+                    builder.currency("USD");
+                    builder.date(startDate.toString());
+
+                    rawCosts.add(builder.build());
+
+                } catch (Exception e) {
+                    log.warn("Error processing raw cost row: {}", e.getMessage());
+                }
+            }
+
+            log.info("Fetched {} raw cost records for date range", rawCosts.size());
+
+        } catch (Exception e) {
+            log.error("Failed to fetch raw costs for date range", e);
+            throw new RuntimeException("Raw cost fetch failed", e);
+        }
+
+        return rawCosts;
+    }
 
     @Transactional
     public void syncDailyCostsFromAzure() {

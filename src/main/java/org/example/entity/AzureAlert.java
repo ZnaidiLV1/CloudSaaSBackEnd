@@ -27,4 +27,10 @@ public class AzureAlert {
     private String severity;
     private String description;
     private LocalDateTime occurredAt;
+
+    private String metricName;
+    private String metricNamespace;
+    private Double metricValue;
+    private String operator;
+    private Double threshold;
 }

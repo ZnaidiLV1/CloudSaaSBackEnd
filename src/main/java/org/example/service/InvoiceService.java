@@ -55,6 +55,127 @@ public class InvoiceService {
         }
     }
 
+    /**
+     * Fetch and save invoices from current month (February 2026) going back 12 months
+     */
+    public String saveLast12MonthsInvoices() {
+        try {
+            // Start from February 2026 (or current month)
+            LocalDate currentMonth = LocalDate.of(2026, 2, 1);
+
+            // Go back 12 months
+            LocalDate startMonth = currentMonth.minusMonths(11); // February 2025 - February 2026 = 12 months
+
+            String raw = fetchInvoicesRaw();
+
+            int savedCount = 0;
+            int skippedCount = 0;
+
+            // Loop through each month from startMonth to currentMonth
+            LocalDate monthIterator = startMonth;
+            while (!monthIterator.isAfter(currentMonth)) {
+                int year = monthIterator.getYear();
+                int month = monthIterator.getMonthValue();
+
+                log.info("Fetching invoices for {}-{}", year, month);
+
+                List<InvoiceDto> invoices = parseAndFilter(raw, year, month);
+
+                for (InvoiceDto dto : invoices) {
+                    if (invoiceRepository.findByInvoiceId(dto.getInvoiceId()).isPresent()) {
+                        log.info("Invoice {} already exists, skipping", dto.getInvoiceId());
+                        skippedCount++;
+                        continue;
+                    }
+
+                    Invoice invoice = Invoice.builder()
+                            .invoiceId(dto.getInvoiceId())
+                            .invoiceName(dto.getInvoiceName())
+                            .status(dto.getStatus())
+                            .invoiceDate(parseDate(dto.getInvoiceDate()))
+                            .dueDate(parseDate(dto.getDueDate()))
+                            .billingPeriodStart(parseDate(dto.getBillingPeriodStart()))
+                            .billingPeriodEnd(parseDate(dto.getBillingPeriodEnd()))
+                            .totalAmount(dto.getTotalAmount())
+                            .amountDue(dto.getAmountDue())
+                            .currency(dto.getCurrency())
+                            .downloadUrl(dto.getDownloadUrl())
+                            .build();
+
+                    invoiceRepository.save(invoice);
+                    savedCount++;
+                    log.info("Saved invoice {} for {}-{}", dto.getInvoiceId(), year, month);
+                }
+
+                monthIterator = monthIterator.plusMonths(1);
+            }
+
+            log.info("Completed: Saved {} invoices, Skipped {} existing invoices", savedCount, skippedCount);
+            return String.format("Saved %d invoices for last 12 months (from %s to %s)",
+                    savedCount, startMonth, currentMonth);
+
+        } catch (Exception e) {
+            log.error("Error saving last 12 months invoices", e);
+            return "error: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Alternative: Fetch and save invoices from a specific date range
+     */
+    public String saveInvoicesFromDateRange(int startYear, int startMonth, int endYear, int endMonth) {
+        try {
+            LocalDate start = LocalDate.of(startYear, startMonth, 1);
+            LocalDate end = LocalDate.of(endYear, endMonth, 1);
+
+            String raw = fetchInvoicesRaw();
+
+            int savedCount = 0;
+            int skippedCount = 0;
+
+            LocalDate monthIterator = start;
+            while (!monthIterator.isAfter(end)) {
+                int year = monthIterator.getYear();
+                int month = monthIterator.getMonthValue();
+
+                List<InvoiceDto> invoices = parseAndFilter(raw, year, month);
+
+                for (InvoiceDto dto : invoices) {
+                    if (invoiceRepository.findByInvoiceId(dto.getInvoiceId()).isPresent()) {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    Invoice invoice = Invoice.builder()
+                            .invoiceId(dto.getInvoiceId())
+                            .invoiceName(dto.getInvoiceName())
+                            .status(dto.getStatus())
+                            .invoiceDate(parseDate(dto.getInvoiceDate()))
+                            .dueDate(parseDate(dto.getDueDate()))
+                            .billingPeriodStart(parseDate(dto.getBillingPeriodStart()))
+                            .billingPeriodEnd(parseDate(dto.getBillingPeriodEnd()))
+                            .totalAmount(dto.getTotalAmount())
+                            .amountDue(dto.getAmountDue())
+                            .currency(dto.getCurrency())
+                            .downloadUrl(dto.getDownloadUrl())
+                            .build();
+
+                    invoiceRepository.save(invoice);
+                    savedCount++;
+                }
+
+                monthIterator = monthIterator.plusMonths(1);
+            }
+
+            return String.format("Saved %d invoices from %d-%d to %d-%d",
+                    savedCount, startYear, startMonth, endYear, endMonth);
+
+        } catch (Exception e) {
+            log.error("Error saving invoices from date range", e);
+            return "error: " + e.getMessage();
+        }
+    }
+
     public String savePreviousMonthInvoice() {
         try {
             LocalDate previous = LocalDate.now().minusMonths(1);
@@ -102,7 +223,8 @@ public class InvoiceService {
         String token = getToken();
         WebClient client = WebClient.builder().build();
 
-        LocalDate start = LocalDate.now().minusMonths(6);
+        // Expand date range to cover last 12+ months
+        LocalDate start = LocalDate.now().minusMonths(18); // Go back 18 months to be safe
         LocalDate end = LocalDate.now().plusMonths(1);
 
         String url = "https://management.azure.com"
@@ -145,8 +267,6 @@ public class InvoiceService {
             if (docs != null && docs.isArray() && !docs.isEmpty()) {
                 downloadUrl = textOrNull(docs.get(0), "url");
             }
-
-
 
             result.add(
                     InvoiceDto.builder()

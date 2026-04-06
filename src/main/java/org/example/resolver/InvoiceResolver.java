@@ -30,4 +30,19 @@ public class InvoiceResolver {
     public String savePreviousMonthInvoice() {
         return invoiceService.savePreviousMonthInvoice();
     }
+
+    @MutationMapping
+    public String saveLast12MonthsInvoices() {
+        return invoiceService.saveLast12MonthsInvoices();
+    }
+
+    @MutationMapping
+    public String saveInvoicesFromDateRange(
+            @Argument int startYear,
+            @Argument int startMonth,
+            @Argument int endYear,
+            @Argument int endMonth
+    ) {
+        return invoiceService.saveInvoicesFromDateRange(startYear, startMonth, endYear, endMonth);
+    }
 }

@@ -40,9 +40,9 @@ public class SchedulerService {
             case "alert":
                 alertScheduler.updateSchedule(cronExpression);
                 break;
-            case "monthlycost":
+            /*case "monthlycost":
                 monthlyCostScheduler.updateSchedule(cronExpression);
-                break;
+                break;*/
             default:
                 return "Unknown task: " + task + ". Available tasks: performance, cost, invoice, infra, alert, monthlyCost";
         }

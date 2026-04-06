@@ -17,7 +17,7 @@ public class SchedulerInitializer {
     private final InvoiceScheduler invoiceScheduler;
     private final InfraScheduler infraScheduler;
     private final AlertScheduler alertScheduler;
-    private final MonthlyCostScheduler monthlyCostScheduler;
+ //   private final MonthlyCostScheduler monthlyCostScheduler;
 
  /*   @EventListener(ApplicationReadyEvent.class)
     public void initializeAllSchedulers() {

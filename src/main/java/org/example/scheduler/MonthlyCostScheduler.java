@@ -21,7 +21,7 @@ public class MonthlyCostScheduler {
     private final SchedulerConfig schedulerConfig;
     private ScheduledFuture<?> scheduledTask;
 
-    public void initialize() {
+  /*  public void initialize() {
         String cron = schedulerConfig.getMonthlyCostCron();
         log.info("Initializing MonthlyCostScheduler with cron: {}", cron);
         scheduleTask(cron);
@@ -48,5 +48,5 @@ public class MonthlyCostScheduler {
     public void updateSchedule(String newCron) {
         schedulerConfig.setMonthlyCostCron(newCron);
         scheduleTask(newCron);
-    }
+    }*/
 }
