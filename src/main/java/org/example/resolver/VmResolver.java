@@ -33,6 +33,16 @@ public class VmResolver {
         return vmService.getAllVmBillingTypes();
     }
 
+    @QueryMapping
+    public List<VmService.VmPublicIpDto> getAllVmsWithPublicIp() {
+        return vmService.getAllVmsWithPublicIp();
+    }
+
+    @MutationMapping
+    public String updateVmDomainName(@Argument Long vmId, @Argument String domainName) {
+        return vmService.updateDomainName(vmId, domainName);
+    }
+
     @MutationMapping
     public Boolean updateVmBillingType(@Argument Long vmId, @Argument String billingType) {
         vmService.updateBillingType(vmId, billingType);

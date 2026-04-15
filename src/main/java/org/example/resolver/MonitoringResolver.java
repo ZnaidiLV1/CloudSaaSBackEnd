@@ -50,24 +50,24 @@ public class MonitoringResolver {
     @MutationMapping
     public String triggerMetricsSync() {
         performanceService.syncMetricsFromAzure();
-        return "Metrics sync triggered — check DB and logs";
+        return "Metrics sync triggered";
     }
 
     @MutationMapping
     public String triggerAlertSync() {
-        alertService.syncAlertsFromAzure();
-        return "Alert sync triggered — check DB and logs";
+        alertService.syncLastDayAlerts();
+        return "Alert sync (last 24 hours) triggered";
     }
 
     @MutationMapping
-    public String triggerAlertSyncLast48Hours() {
-        alertService.syncAlertsLast48HoursFromAzure();
-        return "Alert sync (last 48 hours) triggered";
+    public String triggerAlertSyncLast30Days() {
+        alertService.syncLast30DaysAlerts();
+        return "Alert sync (last 30 days) triggered";
     }
 
     @MutationMapping
     public String triggerCostSync() {
         costService.syncDailyCostsFromAzure();
-        return "Cost sync triggered — check DB and logs";
+        return "Cost sync triggered";
     }
 }

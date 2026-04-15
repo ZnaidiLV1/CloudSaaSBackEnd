@@ -4,25 +4,24 @@ import org.example.entity.AzureAlert;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
+@Repository
 public interface AzureAlertRepository extends JpaRepository<AzureAlert, Long> {
 
-    boolean existsByAzureAlertId(String azureAlertId);
+    Optional<AzureAlert> findByAzureAlertIdAndVmId(String azureAlertId, Long vmId);
 
-    List<AzureAlert> findByVmIdAndOccurredAtBetweenOrderByOccurredAtDesc(
-            Long vmId, LocalDateTime from, LocalDateTime to);
+    boolean existsByAzureAlertIdAndVmId(String azureAlertId, Long vmId);
 
-    List<AzureAlert> findTop20ByVmIdOrderByOccurredAtDesc(Long vmId);
+    List<AzureAlert> findByVmIdAndOccurredAtBetween(Long vmId, LocalDateTime start, LocalDateTime end);
 
-    @Query("SELECT a FROM AzureAlert a WHERE a.vm.vmType = :product AND a.occurredAt BETWEEN :from AND :to ORDER BY a.occurredAt DESC")
-    List<AzureAlert> findByProductAndPeriod(@Param("product") String product,
-                                            @Param("from") LocalDateTime from,
-                                            @Param("to") LocalDateTime to);
+    List<AzureAlert> findByMonitorConditionAndOccurredAtBetween(String monitorCondition, LocalDateTime start, LocalDateTime end);
 
-    List<AzureAlert> findByOccurredAtBetweenOrderByOccurredAtDesc(LocalDateTime from, LocalDateTime to);
+    List<AzureAlert> findByMonitorConditionAndResolvedAtIsNull(String monitorCondition);
 
-    List<AzureAlert> findBySeverityAndOccurredAtBetweenOrderByOccurredAtDesc(
-            String severity, LocalDateTime from, LocalDateTime to);
+    @Query("SELECT a FROM AzureAlert a WHERE a.vm.id = :vmId AND a.azureAlertId = :alertId")
+    Optional<AzureAlert> findByVmIdAndAzureAlertId(@Param("vmId") Long vmId, @Param("alertId") String alertId);
 }

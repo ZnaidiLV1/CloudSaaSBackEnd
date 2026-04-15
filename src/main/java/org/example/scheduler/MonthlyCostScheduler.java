@@ -9,6 +9,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -21,15 +22,18 @@ public class MonthlyCostScheduler {
     private final SchedulerConfig schedulerConfig;
     private ScheduledFuture<?> scheduledTask;
 
-  /*  public void initialize() {
-        String cron = schedulerConfig.getMonthlyCostCron();
+  public void initialize() {
+        String cron = schedulerConfig.getCronForTask("monthlyCost");
         log.info("Initializing MonthlyCostScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
 
     public void executeTask() {
-        log.info("MonthlyCostScheduler — monthly cost launching...");
-        monthlyCostSyncService.syncLastMonthCosts();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonth = now.minusMonths(1);
+        int year = lastMonth.getYear();
+        int month = lastMonth.getMonthValue();
+        monthlyCostSyncService.syncMonthlyCostsFromAzure(year, month);
     }
 
     public void scheduleTask(String cron) {
@@ -46,7 +50,6 @@ public class MonthlyCostScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setMonthlyCostCron(newCron);
         scheduleTask(newCron);
-    }*/
+    }
 }

@@ -39,16 +39,9 @@ public class AuthResolver {
 
     @MutationMapping
     @PreAuthorize("isAuthenticated()")
-    public AuthPayload requestPasswordChange(@Argument String currentPassword){
+    public AuthPayload changePassword(@Argument String oldPassword, @Argument String newPassword){
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return authService.requestPasswordChange(auth.getName(),currentPassword);
-    }
-
-    @MutationMapping
-    @PreAuthorize("isAuthenticated()")
-    public AuthPayload confirmPasswordChange(@Argument String otp,@Argument String newPassword){
-        Authentication auth =SecurityContextHolder.getContext().getAuthentication();
-        return authService.confirmPasswordChange(otp,auth.getName(),newPassword);
+        return authService.changePassword(auth.getName(), oldPassword, newPassword);
     }
 
     @MutationMapping
@@ -60,15 +53,17 @@ public class AuthResolver {
     }
 
     @MutationMapping
-    public AuthPayload forgotPassword(@Argument String email) {
+    public AuthPayload forgetPassword(@Argument String email) {
         return authService.forgotPassword(email);
     }
 
     @MutationMapping
-    public AuthPayload resetPassword(
-            @Argument String email,
-            @Argument String otp,
-            @Argument String newPassword) {
+    public AuthPayload verifyResetOtp(@Argument String email, @Argument String otp) {
+        return authService.verifyResetOtp(email, otp);
+    }
+
+    @MutationMapping
+    public AuthPayload resetPassword(@Argument String email, @Argument String otp, @Argument String newPassword) {
         return authService.resetPassword(email, otp, newPassword);
     }
 

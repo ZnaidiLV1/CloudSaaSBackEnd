@@ -9,6 +9,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -22,13 +23,25 @@ public class InvoiceScheduler {
     private ScheduledFuture<?> scheduledTask;
 
     public void initialize() {
-        String cron = schedulerConfig.getInvoiceCron();
+        String cron = schedulerConfig.getCronForTask("invoice");
         log.info("Initializing InvoiceScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
     public void executeTask() {
+        long startTime = System.currentTimeMillis();
         log.info("InvoiceScheduler — pulling invoice...");
-        invoiceService.savePreviousMonthInvoice();
+
+        schedulerConfig.updateStatusOnly("invoice", "RUNNING");
+
+        try {
+            invoiceService.savePreviousMonthInvoice();
+            long duration = System.currentTimeMillis() - startTime;
+            schedulerConfig.updateExecutionStatus("invoice", LocalDateTime.now(), "SUCCESS");
+            log.info("InvoiceScheduler — completed successfully in {} ms", duration);
+        } catch (Exception e) {
+            log.error("InvoiceScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("invoice", "FAILED");
+        }
     }
 
     public void scheduleTask(String cron) {
@@ -45,7 +58,6 @@ public class InvoiceScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setInvoiceCron(newCron);
         scheduleTask(newCron);
     }
 }

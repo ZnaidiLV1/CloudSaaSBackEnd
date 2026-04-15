@@ -37,10 +37,13 @@ public class AuthService {
         }
         catch (AuthenticationException e)
         {
-            throw new RuntimeException("invalid email or password");
+            return new AuthPayload(null, null, null, "invalid email or password");
         }
-        User user=userRepository.findByEmail(email)
-                .orElseThrow( () -> new RuntimeException("User not found"));
+        User user=userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return new AuthPayload(null, null, null, "User not found");
+        }
 
         String otp = String.format("%06d", new Random().nextInt(999999));
 
@@ -49,16 +52,18 @@ public class AuthService {
         userRepository.save(user);
 
         emailService.sendOtp(user.getEmail(), otp);
-        return new AuthPayload(null,null,email,"otp sent to"+email);
-
+        return new AuthPayload(null,null,email,"otp sent to "+email);
     }
 
     public AuthPayload verifyOtp(String email,String otp){
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return new AuthPayload(null, null, null, "User not found");
+        }
 
         if (user.getOtpCode() == null) {
-            throw new RuntimeException("No OTP requested for this account");
+            return new AuthPayload(null, null, null, "No OTP requested for this account");
         }
 
         if(LocalDateTime.now().isAfter(user.getOtpExpiry()))
@@ -66,12 +71,12 @@ public class AuthService {
             user.setOtpCode(null);
             user.setOtpExpiry(null);
             userRepository.save(user);
-            throw new RuntimeException("OTP expired , login again");
+            return new AuthPayload(null, null, null, "OTP expired , login again");
         }
 
         if(!user.getOtpCode().equals(otp))
         {
-            throw new RuntimeException("Invalid OTP");
+            return new AuthPayload(null, null, null, "Invalid OTP");
         }
 
         String token=jwtUtil.generateToken(user);
@@ -111,52 +116,29 @@ public class AuthService {
                 .collect(Collectors.toList());
     }
 
-    public AuthPayload requestPasswordChange(String email,String currentPassword){
-        User user=userRepository.findByEmail(email)
-                .orElseThrow(()->new RuntimeException("User does not exist"));
+    public AuthPayload changePassword(String email, String oldPassword, String newPassword) {
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        if (currentPassword == null || currentPassword.isBlank()) {
-            throw new RuntimeException("Current password is required");
+        if (user == null) {
+            return new AuthPayload(null, null, null, "User not found");
         }
 
-        if(!passwordEncoder.matches(currentPassword,user.getPassword())){
-            throw new RuntimeException("Current password is incorrect");
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            return new AuthPayload(null, null, null, "Current password is incorrect");
         }
 
-        String otp = String.format("%06d", new Random().nextInt(999999));
-        user.setOtpCode(otp);
-        user.setOtpExpiry(LocalDateTime.now().plusMinutes(5));
-        userRepository.save(user);
-
-        emailService.sendPasswordChangeOtp(email,otp);
-        return new AuthPayload(null,null,email,"OTP sent to " + email + ". Use it to confirm your password change.");
-    }
-
-    public AuthPayload confirmPasswordChange(String otp,String email,String newPassword){
-        User user=userRepository.findByEmail(email)
-                .orElseThrow(()->new RuntimeException("User not found"));
-
-        if(user.getOtpCode()==null){
-            throw new RuntimeException("No password change was requested");
+        if (newPassword == null || newPassword.length() < 6) {
+            return new AuthPayload(null, null, null, "New password must be at least 6 characters");
         }
 
-        if(LocalDateTime.now().isAfter(user.getOtpExpiry())){
-            user.setOtpCode(null);
-            user.setOtpExpiry(null);
-            userRepository.save(user);
-            throw new RuntimeException("OTP expired , try again");
-        }
-
-        if(!user.getOtpCode().equals(otp)){
-            throw new RuntimeException("Wrong Code");
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            return new AuthPayload(null, null, null, "New password must be different from current password");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
-        user.setOtpCode(null);
-        user.setOtpExpiry(null);
         userRepository.save(user);
 
-        return new AuthPayload(null,null,email,"Password changed successfully");
+        return new AuthPayload(null, null, email, "Password changed successfully");
     }
 
     public AuthPayload logout(String token) {
@@ -172,8 +154,11 @@ public class AuthService {
 
     public AuthPayload forgotPassword(String email) {
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("No account found with this email"));
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return new AuthPayload(null, null, null, "No account found with this email");
+        }
 
         String otp = String.format("%06d", new Random().nextInt(999999));
         user.setOtpCode(otp);
@@ -185,28 +170,54 @@ public class AuthService {
         return new AuthPayload(null, null, email, "Password reset code sent to " + email);
     }
 
-    public AuthPayload resetPassword(String email, String otp, String newPassword) {
+    public AuthPayload verifyResetOtp(String email, String otp) {
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("No account found with this email"));
+        if (user == null) {
+            return new AuthPayload(null, null, null, "User not found");
+        }
 
         if (user.getOtpCode() == null) {
-            throw new RuntimeException("No password reset was requested for this account");
+            return new AuthPayload(null, null, null, "No password reset was requested for this account");
         }
 
         if (LocalDateTime.now().isAfter(user.getOtpExpiry())) {
             user.setOtpCode(null);
             user.setOtpExpiry(null);
             userRepository.save(user);
-            throw new RuntimeException("Reset code has expired, please request again");
+            return new AuthPayload(null, null, null, "Reset code has expired, please request again");
         }
 
         if (!user.getOtpCode().equals(otp)) {
-            throw new RuntimeException("Invalid reset code");
+            return new AuthPayload(null, null, null, "Invalid reset code");
+        }
+        return new AuthPayload(null, null, email, "OTP verified successfully. You can now reset your password.");
+    }
+
+    public AuthPayload resetPassword(String email, String otp, String newPassword) {
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return new AuthPayload(null, null, null, "No account found with this email");
         }
 
-        if (newPassword.length() < 6) {
-            throw new RuntimeException("Password must be at least 6 characters");
+        if (user.getOtpCode() == null) {
+            return new AuthPayload(null, null, null, "No password reset was requested for this account");
+        }
+
+        if (LocalDateTime.now().isAfter(user.getOtpExpiry())) {
+            user.setOtpCode(null);
+            user.setOtpExpiry(null);
+            userRepository.save(user);
+            return new AuthPayload(null, null, null, "Reset code has expired, please request again");
+        }
+
+        if (!user.getOtpCode().equals(otp)) {
+            return new AuthPayload(null, null, null, "Invalid reset code");
+        }
+
+        if (newPassword == null || newPassword.length() < 6) {
+            return new AuthPayload(null, null, null, "Password must be at least 6 characters");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
@@ -216,6 +227,4 @@ public class AuthService {
 
         return new AuthPayload(null, null, email, "Password reset successfully. You can now login.");
     }
-
-
 }

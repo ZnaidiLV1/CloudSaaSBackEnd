@@ -35,6 +35,12 @@ public class Vm {
     @Column(name = "billing_type")
     private BillingType billingType;
 
+    @Column(name = "public_ip_address")
+    private String publicIpAddress;
+
+    @Column(name = "domain_name")
+    private String domainName;
+
     @Builder.Default
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(

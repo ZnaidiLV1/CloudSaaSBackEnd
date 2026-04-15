@@ -24,6 +24,8 @@ public class SchedulerService {
     public String updateSchedule(String task, String cronExpression) {
         log.info("Updating schedule for task: {} with cron: {}", task, cronExpression);
 
+        schedulerConfig.updateCronAndSave(task.toLowerCase(), cronExpression);
+
         switch (task.toLowerCase()) {
             case "performance":
                 performanceScheduler.updateSchedule(cronExpression);
@@ -40,9 +42,9 @@ public class SchedulerService {
             case "alert":
                 alertScheduler.updateSchedule(cronExpression);
                 break;
-            /*case "monthlycost":
+            case "monthlycost":
                 monthlyCostScheduler.updateSchedule(cronExpression);
-                break;*/
+                break;
             default:
                 return "Unknown task: " + task + ". Available tasks: performance, cost, invoice, infra, alert, monthlyCost";
         }
@@ -50,7 +52,7 @@ public class SchedulerService {
         return "Successfully updated " + task + " schedule to: " + cronExpression;
     }
 
-    public Map<String, String> getAllSchedules() {
-        return schedulerConfig.getAllSchedules();
+    public Map<String, Map<String, Object>> getAllSchedules() {
+        return schedulerConfig.getAllSchedulesWithStatus();
     }
 }
