@@ -116,6 +116,53 @@ type VmPublicIp {
     domainName: String
 }
 
+type VmDto {
+    id: ID!
+    name: String!
+    status: String
+    vmType: String
+    publicIpAddress: String
+    billingType: String
+    region: String
+    resourceGroup: String
+}
+
+type TagDto {
+    id: ID!
+    key: String!
+    value: String!
+}
+
+type VmTagRelationDto {
+    vmId: ID!
+    tagId: ID!
+}
+
+type InfrastructureResponse {
+    vms: [VmDto!]!
+    tags: [TagDto!]!
+    vmTags: [VmTagRelationDto!]!
+}
+
+type InvoiceSummaryDto {
+    invoiceId: String!
+    status: String!
+    totalAmount: Float!
+    monthYear: String!
+}
+
+type InvoicePageResponse {
+    invoices: [InvoiceSummaryDto!]!
+    index: Int!
+    hasNext: Boolean!
+    hasPrevious: Boolean!
+}
+
+type CostAmountsResponse {
+    amounts: [Float!]!
+    months: [String!]!
+}
+
 #  MUTATIONS 
 type Mutation {
     # Auth
@@ -173,6 +220,8 @@ type Query {
 
     # Billing
     invoicesForMonth(year: Int!, month: Int!): [InvoiceDto]
+    invoicesBySmartIndex(index: Int! = 0): InvoicePageResponse!
+    costAmounts(startMonth: Int!, startYear: Int!, endMonth: Int!, endYear: Int!): CostAmountsResponse!
 
     # Monthly Cost
     monthlyCosts(year: Int!, month: Int!): [MonthlyCost!]!
@@ -184,4 +233,9 @@ type Query {
 
     # public ip and domain name list
     getAllVmsWithPublicIp: [VmPublicIp!]!
+
+    # infrastructure query
+    getAllInfrastructure: InfrastructureResponse!
+
+
 }

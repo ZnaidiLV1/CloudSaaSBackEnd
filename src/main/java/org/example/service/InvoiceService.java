@@ -7,7 +7,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.CostAmountsResponse;
 import org.example.dto.InvoiceDto;
+import org.example.dto.InvoicePageResponse;
+import org.example.dto.InvoiceSummaryDto;
 import org.example.entity.Invoice;
 import org.example.repository.InvoiceRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,6 +48,49 @@ public class InvoiceService {
         return token.getToken();
     }
 
+    public InvoicePageResponse getInvoicesBySmartIndex(int index) {
+        int monthsPerPage = 6;
+
+        LocalDateTime newestDate = invoiceRepository.findNewestInvoiceDate();
+        LocalDateTime oldestDate = invoiceRepository.findOldestInvoiceDate();
+
+        if (newestDate == null) {
+            return InvoicePageResponse.builder()
+                    .invoices(List.of())
+                    .index(index)
+                    .hasNext(false)
+                    .hasPrevious(false)
+                    .build();
+        }
+
+
+        LocalDateTime windowEnd = newestDate.minusMonths(monthsPerPage * index);
+        LocalDateTime windowStart = windowEnd.minusMonths(monthsPerPage);
+
+
+        boolean hasNext = windowStart.minusMonths(1).isAfter(oldestDate) || windowStart.isAfter(oldestDate);
+        boolean hasPrevious = index > 0;
+
+
+        List<Invoice> invoices = invoiceRepository.findInvoicesBetweenDates(windowStart, windowEnd);
+
+        List<InvoiceSummaryDto> summaryDtos = invoices.stream()
+                .map(inv -> InvoiceSummaryDto.builder()
+                        .invoiceId(inv.getInvoiceId())
+                        .status(inv.getStatus())
+                        .totalAmount(inv.getTotalAmount())
+                        .monthYear(inv.getInvoiceDate().getMonth().toString() + " " + inv.getInvoiceDate().getYear())
+                        .build())
+                .collect(Collectors.toList());
+
+        return InvoicePageResponse.builder()
+                .invoices(summaryDtos)
+                .index(index)
+                .hasNext(hasNext)
+                .hasPrevious(hasPrevious)
+                .build();
+    }
+
     public List<InvoiceDto> getInvoicesForMonth(int year, int month) {
         try {
             String raw = fetchInvoicesRaw();
@@ -60,18 +107,18 @@ public class InvoiceService {
      */
     public String saveLast12MonthsInvoices() {
         try {
-            // Start from February 2026 (or current month)
+
             LocalDate currentMonth = LocalDate.of(2026, 2, 1);
 
-            // Go back 12 months
-            LocalDate startMonth = currentMonth.minusMonths(11); // February 2025 - February 2026 = 12 months
+
+            LocalDate startMonth = currentMonth.minusMonths(11);
 
             String raw = fetchInvoicesRaw();
 
             int savedCount = 0;
             int skippedCount = 0;
 
-            // Loop through each month from startMonth to currentMonth
+
             LocalDate monthIterator = startMonth;
             while (!monthIterator.isAfter(currentMonth)) {
                 int year = monthIterator.getYear();
@@ -120,9 +167,29 @@ public class InvoiceService {
         }
     }
 
-    /**
-     * Alternative: Fetch and save invoices from a specific date range
-     */
+    public CostAmountsResponse getCostAmounts(int startMonth, int startYear, int endMonth, int endYear) {
+        LocalDateTime startDate = LocalDateTime.of(startYear, startMonth, 1, 0, 0);
+        LocalDateTime endDate = LocalDateTime.of(endYear, endMonth, 1, 0, 0);
+
+        List<Invoice> invoices = invoiceRepository.findInvoicesByBillingPeriodStartBetween(startDate, endDate);
+
+        List<Double> amounts = new ArrayList<>();
+        List<String> months = new ArrayList<>();
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/yy");
+
+        for (Invoice invoice : invoices) {
+            amounts.add(invoice.getTotalAmount());
+            String monthYear = invoice.getBillingPeriodStart().format(formatter);
+            months.add(monthYear);
+        }
+
+        return CostAmountsResponse.builder()
+                .amounts(amounts)
+                .months(months)
+                .build();
+    }
+
     public String saveInvoicesFromDateRange(int startYear, int startMonth, int endYear, int endMonth) {
         try {
             LocalDate start = LocalDate.of(startYear, startMonth, 1);
@@ -223,8 +290,8 @@ public class InvoiceService {
         String token = getToken();
         WebClient client = WebClient.builder().build();
 
-        // Expand date range to cover last 12+ months
-        LocalDate start = LocalDate.now().minusMonths(18); // Go back 18 months to be safe
+
+        LocalDate start = LocalDate.now().minusMonths(18);
         LocalDate end = LocalDate.now().plusMonths(1);
 
         String url = "https://management.azure.com"
