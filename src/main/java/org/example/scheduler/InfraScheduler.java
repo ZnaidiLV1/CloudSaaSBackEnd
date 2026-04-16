@@ -9,6 +9,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -22,14 +23,26 @@ public class InfraScheduler {
     private ScheduledFuture<?> scheduledTask;
 
     public void initialize() {
-        String cron = schedulerConfig.getInfraCron();
+        String cron = schedulerConfig.getCronForTask("infra");
         log.info("Initializing InfraScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
 
     public void executeTask() {
+        long startTime = System.currentTimeMillis();
         log.info("InfraScheduler — syncing Azure infrastructure...");
-        vmService.syncAzureInfrastructure();
+
+        schedulerConfig.updateStatusOnly("infra", "RUNNING");
+
+        try {
+            vmService.syncAzureInfrastructure();
+            long duration = System.currentTimeMillis() - startTime;
+            schedulerConfig.updateExecutionStatus("infra", LocalDateTime.now(), "SUCCESS");
+            log.info("InfraScheduler — completed successfully in {} ms", duration);
+        } catch (Exception e) {
+            log.error("InfraScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("infra", "FAILED");
+        }
     }
 
     public void scheduleTask(String cron) {
@@ -46,7 +59,6 @@ public class InfraScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setInfraCron(newCron);
         scheduleTask(newCron);
     }
 }

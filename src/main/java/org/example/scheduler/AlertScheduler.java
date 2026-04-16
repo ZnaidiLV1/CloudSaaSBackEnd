@@ -9,6 +9,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -22,13 +23,25 @@ public class AlertScheduler {
     private ScheduledFuture<?> scheduledTask;
 
     public void initialize() {
-        String cron = schedulerConfig.getAlertCron();
+        String cron = schedulerConfig.getCronForTask("alert");
         log.info("Initializing AlertScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
     public void executeTask() {
+        long startTime = System.currentTimeMillis();
         log.info("AlertScheduler — syncing alerts...");
-        alertService.syncAlertsFromAzure();
+
+        schedulerConfig.updateStatusOnly("alert", "RUNNING");
+
+        try {
+            alertService.syncLastDayAlerts();
+            long duration = System.currentTimeMillis() - startTime;
+            schedulerConfig.updateExecutionStatus("alert", LocalDateTime.now(), "SUCCESS");
+            log.info("AlertScheduler — completed successfully in {} ms", duration);
+        } catch (Exception e) {
+            log.error("AlertScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("alert", "FAILED");
+        }
     }
 
     public void scheduleTask(String cron) {
@@ -45,7 +58,6 @@ public class AlertScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setAlertCron(newCron);
         scheduleTask(newCron);
     }
 }

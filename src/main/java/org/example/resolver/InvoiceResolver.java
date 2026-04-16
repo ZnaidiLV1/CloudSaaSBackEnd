@@ -2,7 +2,9 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.CostAmountsResponse;
 import org.example.dto.InvoiceDto;
+import org.example.dto.InvoicePageResponse;
 import org.example.service.InvoiceService;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
@@ -44,5 +46,21 @@ public class InvoiceResolver {
             @Argument int endMonth
     ) {
         return invoiceService.saveInvoicesFromDateRange(startYear, startMonth, endYear, endMonth);
+    }
+
+    @QueryMapping
+    public InvoicePageResponse invoicesBySmartIndex(@Argument int index) {
+        return invoiceService.getInvoicesBySmartIndex(index);
+    }
+
+    @QueryMapping
+    public CostAmountsResponse costAmounts(
+            @Argument int startMonth,
+            @Argument int startYear,
+            @Argument int endMonth,
+            @Argument int endYear
+    ) {
+        log.info("GraphQL: costAmounts called - start: {}/{} end: {}/{}", startMonth, startYear, endMonth, endYear);
+        return invoiceService.getCostAmounts(startMonth, startYear, endMonth, endYear);
     }
 }

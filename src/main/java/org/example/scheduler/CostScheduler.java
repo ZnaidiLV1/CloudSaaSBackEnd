@@ -9,6 +9,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -22,13 +23,25 @@ public class CostScheduler {
     private ScheduledFuture<?> scheduledTask;
 
     public void initialize() {
-        String cron = schedulerConfig.getCostCron();
+        String cron = schedulerConfig.getCronForTask("cost");
         log.info("Initializing CostScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
     public void executeTask() {
+        long startTime = System.currentTimeMillis();
         log.info("CostScheduler — pulling daily costs...");
-        costService.syncDailyCostsFromAzure();
+
+        schedulerConfig.updateStatusOnly("cost", "RUNNING");
+
+        try {
+            costService.syncDailyCostsFromAzure();
+            long duration = System.currentTimeMillis() - startTime;
+            schedulerConfig.updateExecutionStatus("cost", LocalDateTime.now(), "SUCCESS");
+            log.info("CostScheduler — completed successfully in {} ms", duration);
+        } catch (Exception e) {
+            log.error("CostScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("cost", "FAILED");
+        }
     }
 
     public void scheduleTask(String cron) {
@@ -45,7 +58,6 @@ public class CostScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setCostCron(newCron);
         scheduleTask(newCron);
     }
 }

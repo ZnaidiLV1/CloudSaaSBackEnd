@@ -1,7 +1,11 @@
+// File: org.example.service.VmService
 package org.example.service;
 
 import com.azure.resourcemanager.AzureResourceManager;
 import com.azure.resourcemanager.compute.models.VirtualMachine;
+import com.azure.resourcemanager.network.models.NetworkInterface;
+import com.azure.resourcemanager.network.models.NicIpConfiguration;
+import com.azure.resourcemanager.network.models.PublicIpAddress;
 import lombok.RequiredArgsConstructor;
 import org.example.entity.Tag;
 import org.example.entity.Vm;
@@ -60,6 +64,25 @@ public class VmService {
 
                 vm.setVmType(vmType);
 
+                String publicIp = null;
+                try {
+                    NetworkInterface nic = azureVm.getPrimaryNetworkInterface();
+                    if (nic != null) {
+                        List<NicIpConfiguration> ipConfigs = new ArrayList<>(nic.ipConfigurations().values());
+                        if (!ipConfigs.isEmpty()) {
+                            NicIpConfiguration primaryIpConfig = ipConfigs.get(0);
+                            PublicIpAddress publicIpAddress = primaryIpConfig.getPublicIpAddress();
+                            if (publicIpAddress != null) {
+                                publicIp = publicIpAddress.ipAddress();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not retrieve Public IP for VM {}: {}", azureVm.name(), e.getMessage());
+                }
+                vm.setPublicIpAddress(publicIp);
+                vm.setDomainName(null);
+
                 if (vm.getTags() == null) {
                     vm.setTags(new ArrayList<>());
                 }
@@ -88,7 +111,8 @@ public class VmService {
                 }
 
                 vmRepository.save(vm);
-                log.info("VM saved successfully: {} with type: {}", vm.getName(), vm.getVmType());
+                log.info("VM saved successfully: {} with type: {}, public IP: {}",
+                        vm.getName(), vm.getVmType(), vm.getPublicIpAddress());
 
             } catch (Exception e) {
                 log.error("Error processing VM {}: {}", azureVm.name(), e.getMessage(), e);
@@ -129,6 +153,30 @@ public class VmService {
                 .collect(Collectors.toList());
     }
 
+    public List<VmPublicIpDto> getAllVmsWithPublicIp() {
+        return vmRepository.findAll().stream()
+                .filter(vm -> vm.getPublicIpAddress() != null && !vm.getPublicIpAddress().isEmpty())
+                .map(vm -> new VmPublicIpDto(
+                        vm.getId(),
+                        vm.getName(),
+                        vm.getPublicIpAddress(),
+                        vm.getDomainName()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public String updateDomainName(Long vmId, String domainName) {
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        vm.setDomainName(domainName);
+        vmRepository.save(vm);
+
+        log.info("Domain name updated for VM ID: {} with domain: {}", vmId, domainName);
+        return "Domain name updated successfully for VM: " + vm.getName();
+    }
+
     @Transactional
     public void updateBillingType(Long vmId, String billingType) {
         BillingType enumValue = BillingType.valueOf(billingType);
@@ -148,4 +196,18 @@ public class VmService {
             this.billingType = billingType;
         }
     }
+    public static class VmPublicIpDto {
+        public Long id;
+        public String vmName;
+        public String ipAddress;
+        public String domainName;
+
+        public VmPublicIpDto(Long id, String vmName, String ipAddress, String domainName) {
+            this.id = id;
+            this.vmName = vmName;
+            this.ipAddress = ipAddress;
+            this.domainName = domainName;
+        }
+    }
+
 }

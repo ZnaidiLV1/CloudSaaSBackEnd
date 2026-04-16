@@ -20,9 +20,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -37,13 +39,13 @@ public class AzureAlertService {
     @Value("${azure.subscription-id}")
     private String subscriptionId;
 
-    public List<AzureAlert> fetchLastTwoHoursAlerts(Vm vm) {
-        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusHours(2);
+    public List<AzureAlert> fetchLastDayAlerts(Vm vm) {
+        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusDays(1);
         return fetchAlertsForVmSince(vm, from);
     }
 
-    public List<AzureAlert> fetchLast48HoursAlerts(Vm vm) {
-        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusHours(48);
+    public List<AzureAlert> fetchLast30DaysAlerts(Vm vm) {
+        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusDays(30);
         return fetchAlertsForVmSince(vm, from);
     }
 
@@ -59,168 +61,64 @@ public class AzureAlertService {
                             .block())
                     .getToken();
 
-            String url = String.format(
-                    "https://management.azure.com/subscriptions/%s" +
-                            "/providers/Microsoft.AlertsManagement/alerts" +
-                            "?api-version=2019-05-05-preview" +
-                            "&timeRange=30d" +
-                            "&pageCount=250" +
-                            "&sortBy=startDateTime" +
-                            "&sortOrder=desc",
-                    subscriptionId
-            );
+            String nextLink = null;
+            boolean hasMorePages = true;
+            int pageCount = 0;
 
-            HttpClient client = HttpClient.newHttpClient();
-            HttpResponse<String> response = client.send(
-                    HttpRequest.newBuilder()
-                            .uri(URI.create(url))
-                            .header("Authorization", "Bearer " + token)
-                            .header("Content-Type", "application/json")
-                            .GET()
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString()
-            );
+            while (hasMorePages && pageCount < 10) {
+                String url;
+                if (nextLink == null) {
+                    url = String.format(
+                            "https://management.azure.com/subscriptions/%s" +
+                                    "/providers/Microsoft.AlertsManagement/alerts" +
+                                    "?api-version=2019-05-05-preview" +
+                                    "&targetResource=%s" +
+                                    "&timeRange=30d" +
+                                    "&pageCount=100" +
+                                    "&sortBy=startDateTime" +
+                                    "&sortOrder=desc",
+                            subscriptionId, URLEncoder.encode(vmResourceId, StandardCharsets.UTF_8)
+                    );
+                } else {
+                    url = nextLink;
+                }
 
-            if (response.statusCode() != 200) {
-                log.error("Failed to fetch alerts for VM {}: {}", vm.getName(), response.body());
-                return result;
-            }
+                HttpClient client = HttpClient.newHttpClient();
+                HttpResponse<String> response = client.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(url))
+                                .header("Authorization", "Bearer " + token)
+                                .header("Content-Type", "application/json")
+                                .GET()
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString()
+                );
 
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode values = root.get("value");
+                if (response.statusCode() != 200) {
+                    log.error("Failed to fetch alerts for VM {}: {}", vm.getName(), response.body());
+                    break;
+                }
 
-            if (values == null || !values.isArray()) {
-                return result;
-            }
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode values = root.get("value");
 
-            OffsetDateTime cutoff = from.atZone(ZoneOffset.UTC).toOffsetDateTime();
-
-            for (JsonNode alertNode : values) {
-                try {
-                    JsonNode ess = alertNode.path("properties").path("essentials");
-
-                    String monitorCondition = ess.path("monitorCondition").asText(null);
-
-                    log.info("Alert status for VM {} - monitorCondition: {}", vm.getName(), monitorCondition);
-
-                    if (!"Fired".equals(monitorCondition)) {
-                        log.info("Skipping non-Fired alert for VM {} - Status: {}", vm.getName(), monitorCondition);
-                        continue;
-                    }
-
-                    log.info("Processing FIRED alert for VM {}", vm.getName());
-
-                    String targetResource = ess.path("targetResource").asText(null);
-                    String targetName = ess.path("targetResourceName").asText(null);
-                    String firedAtRaw = ess.path("startDateTime").asText(null);
-                    String severity = ess.path("severity").asText("Sev4");
-                    String alertRule = ess.path("alertRule").asText(null);
-                    String description = ess.path("description").asText(null);
-                    String fullAlertId = alertNode.path("id").asText(null);
-
-                    String alertId = null;
-                    if (fullAlertId != null && fullAlertId.contains("/")) {
-                        String[] parts = fullAlertId.split("/");
-                        alertId = parts[parts.length - 1];
-                    }
-
-                    if (firedAtRaw == null || firedAtRaw.isBlank()) {
-                        log.warn("No startDateTime for alert, skipping");
-                        continue;
-                    }
-
-                    OffsetDateTime firedAt = OffsetDateTime.parse(firedAtRaw)
-                            .withOffsetSameInstant(ZoneOffset.UTC);
-
-                    if (firedAt.isBefore(cutoff)) {
-                        log.info("Alert too old - firedAt: {}, cutoff: {}, skipping", firedAt, cutoff);
-                        continue;
-                    }
-
-                    boolean matchesVm = false;
-
-                    if (vmResourceId != null && targetResource != null
-                            && targetResource.toLowerCase().equals(vmResourceId)) {
-                        matchesVm = true;
-                        log.info("VM matched by exact resource ID");
-                    }
-
-                    if (!matchesVm && vmResourceId != null && targetResource != null
-                            && targetResource.toLowerCase().contains(vmResourceId)) {
-                        matchesVm = true;
-                        log.info("VM matched by contains resource ID");
-                    }
-
-                    if (!matchesVm && targetName != null
-                            && targetName.toLowerCase().equals(vmName)) {
-                        matchesVm = true;
-                        log.info("VM matched by exact name");
-                    }
-
-                    if (!matchesVm && targetName != null
-                            && targetName.toLowerCase().contains(vmName)) {
-                        matchesVm = true;
-                        log.info("VM matched by contains name");
-                    }
-
-                    if (!matchesVm) {
-                        log.info("VM mismatch - VM ID: {}, Alert TargetResource: {}, Alert TargetName: {}",
-                                vmResourceId, targetResource, targetName);
-                        continue;
-                    }
-
-                    String metricName = null;
-                    String metricNamespace = null;
-                    String operator = null;
-                    Double threshold = null;
-
-                    if (alertRule != null && alertRule.contains("/metricAlerts/")) {
-                        String normalizedRuleId = alertRule.replace("/microsoft.insights/", "/Microsoft.Insights/");
-
-                        MetricAlertRule rule = ruleCache.computeIfAbsent(normalizedRuleId, key -> {
-                            try {
-                                return fetchMetricAlertRule(key, token);
-                            } catch (Exception e) {
-                                log.error("Failed to fetch metric rule: {}", e.getMessage());
-                                return null;
-                            }
-                        });
-
-                        if (rule != null) {
-                            metricName = rule.getMetricName();
-                            metricNamespace = rule.getMetricNamespace();
-                            operator = rule.getOperator();
-                            threshold = rule.getThreshold();
-                            log.info("Got metric rule - Name: {}, Namespace: {}, Operator: {}, Threshold: {}",
-                                    metricName, metricNamespace, operator, threshold);
+                if (values != null && values.isArray()) {
+                    for (JsonNode alertNode : values) {
+                        AzureAlert alert = parseAlertNode(alertNode, vm, vmResourceId, vmName);
+                        if (alert != null) {
+                            result.add(alert);
                         }
                     }
+                }
 
-                    String alertName = ess.path("alertRule").asText("Unknown Alert");
-                    if (alertName.contains("/")) {
-                        String[] parts = alertName.split("/");
-                        alertName = parts[parts.length - 1];
-                    }
-
-                    AzureAlert alert = AzureAlert.builder()
-                            .vm(vm)
-                            .azureAlertId(alertId)
-                            .alertName(alertName)
-                            .severity(severity)
-                            .description(description)
-                            .occurredAt(firedAt.toLocalDateTime())
-                            .metricName(metricName)
-                            .metricNamespace(metricNamespace)
-                            .metricValue(null)
-                            .operator(operator)
-                            .threshold(threshold)
-                            .build();
-
-                    result.add(alert);
-                    log.info("Successfully added FIRED alert '{}' for VM {} to result list", alertName, vm.getName());
-
-                } catch (Exception e) {
-                    log.warn("Skipping malformed alert: {}", e.getMessage());
+                JsonNode nextLinkNode = root.get("nextLink");
+                if (nextLinkNode != null && !nextLinkNode.isNull()) {
+                    nextLink = nextLinkNode.asText();
+                    hasMorePages = true;
+                    pageCount++;
+                    log.info("Fetching next page for VM {}, page {}", vm.getName(), pageCount);
+                } else {
+                    hasMorePages = false;
                 }
             }
 
@@ -228,8 +126,158 @@ public class AzureAlertService {
             log.error("Failed to fetch alerts for VM {}: {}", vm.getName(), e.getMessage());
         }
 
-        log.info("Fetched {} FIRED alerts for VM {} since {}", result.size(), vm.getName(), from);
+        log.info("Fetched {} alerts for VM {} since {}", result.size(), vm.getName(), from);
         return result;
+    }
+
+    private AzureAlert parseAlertNode(JsonNode alertNode, Vm vm, String vmResourceId, String vmName) {
+        try {
+            JsonNode ess = alertNode.path("properties").path("essentials");
+
+            String monitorCondition = ess.path("monitorCondition").asText(null);
+
+            String targetResource = ess.path("targetResource").asText(null);
+            String targetName = ess.path("targetResourceName").asText(null);
+            String startDateTimeRaw = ess.path("startDateTime").asText(null);
+            String severity = ess.path("severity").asText("Sev4");
+            String alertRule = ess.path("alertRule").asText(null);
+            String description = ess.path("description").asText(null);
+            String fullAlertId = alertNode.path("id").asText(null);
+
+            String alertId = null;
+            if (fullAlertId != null && fullAlertId.contains("/")) {
+                String[] parts = fullAlertId.split("/");
+                alertId = parts[parts.length - 1];
+            }
+
+            if (startDateTimeRaw == null || startDateTimeRaw.isBlank()) {
+                return null;
+            }
+
+            OffsetDateTime occurredAt = OffsetDateTime.parse(startDateTimeRaw)
+                    .withOffsetSameInstant(ZoneOffset.UTC);
+
+            boolean matchesVm = false;
+
+            if (vmResourceId != null && targetResource != null
+                    && targetResource.toLowerCase().equals(vmResourceId)) {
+                matchesVm = true;
+            }
+
+            if (!matchesVm && vmResourceId != null && targetResource != null
+                    && targetResource.toLowerCase().contains(vmResourceId)) {
+                matchesVm = true;
+            }
+
+            if (!matchesVm && targetName != null
+                    && targetName.toLowerCase().equals(vmName)) {
+                matchesVm = true;
+            }
+
+            if (!matchesVm && targetName != null
+                    && targetName.toLowerCase().contains(vmName)) {
+                matchesVm = true;
+            }
+
+            if (!matchesVm) {
+                return null;
+            }
+
+            Double metricValue = null;
+            String metricName = null;
+            String metricNamespace = null;
+            String operator = null;
+            Double threshold = null;
+
+            JsonNode conditions = alertNode.path("properties").path("context").path("condition");
+            if (conditions != null && !conditions.isMissingNode()) {
+                if (conditions.has("metricValue")) {
+                    metricValue = conditions.path("metricValue").asDouble();
+                }
+                if (conditions.has("metricName")) {
+                    metricName = conditions.path("metricName").asText();
+                }
+                if (conditions.has("metricNamespace")) {
+                    metricNamespace = conditions.path("metricNamespace").asText();
+                }
+                if (conditions.has("operator")) {
+                    operator = conditions.path("operator").asText();
+                }
+                if (conditions.has("threshold")) {
+                    threshold = conditions.path("threshold").asDouble();
+                }
+            }
+
+            if (metricName == null && alertRule != null && alertRule.contains("/metricAlerts/")) {
+                try {
+                    String token = Objects.requireNonNull(tokenCredential
+                                    .getToken(new TokenRequestContext()
+                                            .addScopes("https://management.azure.com/.default"))
+                                    .block())
+                            .getToken();
+
+                    String normalizedRuleId = alertRule.replace("/microsoft.insights/", "/Microsoft.Insights/");
+                    MetricAlertRule rule = ruleCache.computeIfAbsent(normalizedRuleId, key -> {
+                        try {
+                            return fetchMetricAlertRule(key, token);
+                        } catch (Exception e) {
+                            log.error("Failed to fetch metric rule: {}", e.getMessage());
+                            return null;
+                        }
+                    });
+
+                    if (rule != null) {
+                        metricName = rule.getMetricName();
+                        metricNamespace = rule.getMetricNamespace();
+                        operator = rule.getOperator();
+                        threshold = rule.getThreshold();
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not fetch metric rule details: {}", e.getMessage());
+                }
+            }
+
+            String alertName = ess.path("alertRule").asText("Unknown Alert");
+            if (alertName.contains("/")) {
+                String[] parts = alertName.split("/");
+                alertName = parts[parts.length - 1];
+            }
+
+            LocalDateTime resolvedTime = null;
+            String endDateTimeRaw = ess.path("endDateTime").asText(null);
+            if (endDateTimeRaw != null && !endDateTimeRaw.isBlank()) {
+                resolvedTime = OffsetDateTime.parse(endDateTimeRaw)
+                        .withOffsetSameInstant(ZoneOffset.UTC)
+                        .toLocalDateTime();
+            }
+
+            LocalDateTime firedTime = null;
+            if ("Fired".equals(monitorCondition)) {
+                firedTime = occurredAt.toLocalDateTime();
+            }
+
+            return AzureAlert.builder()
+                    .vm(vm)
+                    .azureAlertId(alertId)
+                    .alertName(alertName)
+                    .severity(severity)
+                    .description(description)
+                    .occurredAt(occurredAt.toLocalDateTime())
+                    .monitorCondition(monitorCondition)
+                    .resolvedAt(resolvedTime)
+                    .firedAt(firedTime)
+                    .alertRule(alertRule)
+                    .metricName(metricName)
+                    .metricNamespace(metricNamespace)
+                    .metricValue(metricValue)
+                    .operator(operator)
+                    .threshold(threshold)
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("Skipping malformed alert: {}", e.getMessage());
+            return null;
+        }
     }
 
     private MetricAlertRule fetchMetricAlertRule(String ruleId, String token) throws Exception {
@@ -244,8 +292,6 @@ public class AzureAlertService {
                 "https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Insights/metricAlerts/%s?api-version=2018-03-01",
                 subscriptionId, resourceGroup, encodedAlertName);
 
-        log.info("Fetching metric rule from URL: {}", url);
-
         HttpClient client = HttpClient.newHttpClient();
         HttpResponse<String> response = client.send(
                 HttpRequest.newBuilder()
@@ -258,7 +304,6 @@ public class AzureAlertService {
         );
 
         if (response.statusCode() != 200) {
-            log.error("Failed to fetch rule. Status: {}, Body: {}", response.statusCode(), response.body());
             throw new RuntimeException("Failed to fetch rule: " + response.body());
         }
 
@@ -288,9 +333,6 @@ public class AzureAlertService {
                 }
             }
         }
-
-        log.info("Extracted from rule - metricName: {}, metricNamespace: {}, operator: {}, threshold: {}",
-                metricName, metricNamespace, operator, threshold);
 
         return new MetricAlertRule(metricName, metricNamespace, operator, threshold);
     }

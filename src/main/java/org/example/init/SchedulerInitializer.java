@@ -17,9 +17,9 @@ public class SchedulerInitializer {
     private final InvoiceScheduler invoiceScheduler;
     private final InfraScheduler infraScheduler;
     private final AlertScheduler alertScheduler;
- //   private final MonthlyCostScheduler monthlyCostScheduler;
+    private final MonthlyCostScheduler monthlyCostScheduler;
 
- /*   @EventListener(ApplicationReadyEvent.class)
+  @EventListener(ApplicationReadyEvent.class)
     public void initializeAllSchedulers() {
         log.info("=== Initializing all schedulers after database load ===");
 
@@ -31,5 +31,5 @@ public class SchedulerInitializer {
         monthlyCostScheduler.initialize();
 
         log.info("=== All schedulers initialized successfully ===");
-    }*/
+    }
 }

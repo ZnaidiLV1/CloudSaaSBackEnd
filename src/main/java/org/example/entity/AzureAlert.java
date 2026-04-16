@@ -5,7 +5,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "azure_alerts")
+@Table(name = "azure_alerts",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"azure_alert_id", "vm_id"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,14 +21,18 @@ public class AzureAlert {
     @JoinColumn(name = "vm_id", nullable = false)
     private Vm vm;
 
-    @Column(unique = true)
+    @Column(name = "azure_alert_id", nullable = false)
     private String azureAlertId;
 
     private String alertName;
     private String severity;
     private String description;
     private LocalDateTime occurredAt;
-
+    private String monitorCondition;
+    private LocalDateTime resolvedAt;
+    private LocalDateTime firedAt;
+    private String alertRule;
+    private Long durationSeconds;
     private String metricName;
     private String metricNamespace;
     private Double metricValue;

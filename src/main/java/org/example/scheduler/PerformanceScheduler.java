@@ -1,6 +1,5 @@
 package org.example.scheduler;
 
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
@@ -9,6 +8,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.ScheduledFuture;
 
 @Component
@@ -21,15 +21,27 @@ public class PerformanceScheduler {
     private final SchedulerConfig schedulerConfig;
     private ScheduledFuture<?> scheduledTask;
 
-    public void initialize(){
-        String cron=schedulerConfig.getPerformanceCron();
-        log.info("Initializing performanceScheduler with cron: {}", cron);
+    public void initialize() {
+        String cron = schedulerConfig.getCronForTask("performance");
+        log.info("Initializing PerformanceScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
 
     public void executeTask() {
+        long startTime = System.currentTimeMillis();
         log.info("PerformanceScheduler — syncing metrics...");
-        performanceService.syncMetricsFromAzure();
+
+        schedulerConfig.updateStatusOnly("performance", "RUNNING");
+
+        try {
+            performanceService.syncMetricsFromAzure();
+            long duration = System.currentTimeMillis() - startTime;
+            schedulerConfig.updateExecutionStatus("performance", LocalDateTime.now(), "SUCCESS");
+            log.info("PerformanceScheduler — completed successfully in {} ms", duration);
+        } catch (Exception e) {
+            log.error("PerformanceScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("performance", "FAILED");
+        }
     }
 
     public void scheduleTask(String cron) {
@@ -46,7 +58,6 @@ public class PerformanceScheduler {
     }
 
     public void updateSchedule(String newCron) {
-        schedulerConfig.setPerformanceCron(newCron);
         scheduleTask(newCron);
     }
 }

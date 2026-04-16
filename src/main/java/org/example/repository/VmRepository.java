@@ -34,6 +34,12 @@ public interface VmRepository extends JpaRepository<Vm, Long> {
     @Query("SELECT v FROM Vm v WHERE v.status = 'Running'")
     List<Vm> findAllRunningVms();
 
+    @Query("SELECT v FROM Vm v LEFT JOIN FETCH v.tags")
+    List<Vm> findAllWithTags();
+
+    @Query("SELECT v FROM Vm v")
+    List<Vm> findAllVmsWithoutTags();
+
     @Modifying
     @Transactional
     @Query("UPDATE Vm v SET v.billingType = :billingType WHERE v.id = :vmId")
