@@ -34,12 +34,10 @@ public class MonthlyCostSyncService {
     @Value("${azure.subscription-id}")
     private String subscriptionId;
 
-    // VM Cache
     private Map<String, Long> vmNameToIdCache;
     private Map<String, String> vmUuidToNameCache;
     private Set<String> vmNamesLowerCase;
 
-    // UUID Pattern for Azure backups
     private static final Pattern UUID_PATTERN = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
 
     @Transactional
@@ -48,11 +46,9 @@ public class MonthlyCostSyncService {
         log.info("========== STARTING SYNC for {}-{} ==========", year, month);
 
         try {
-            // Load all VMs into cache
             loadVmCache();
             log.info("Loaded {} VMs into cache: {}", vmNameToIdCache.size(), vmNamesLowerCase);
 
-            // Calculate date range
             LocalDate firstDay = LocalDate.of(year, month, 1);
             LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
@@ -426,8 +422,7 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 16: Any resource containing VM name as substring ==========
-        // Fallback: Check if any known VM name appears in the resourceId
+
         if (extractedVmName == null) {
             for (String vmName : vmNamesLowerCase) {
                 if (lowerResourceId.contains(vmName)) {
@@ -438,26 +433,22 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 17: Special case for ltrms-loganalytics ==========
-        // This is shared across ltrms-db and ltrms-interne, so mark as shared (return null)
-        if (extractedVmName != null && "ltrms".equals(extractedVmName)) {
+
+        if ("ltrms".equals(extractedVmName)) {
             log.debug("Pattern 11 (Shared Log Analytics): 'ltrms-loganalytics' is shared, not assigning to VM");
             return null;
         }
 
-        // Look up the VM ID from cache
         if (extractedVmName != null) {
             Long vmId = vmNameToIdCache.get(extractedVmName.toLowerCase());
             if (vmId != null) {
                 log.debug("Successfully mapped resource to VM: {} (ID: {})", extractedVmName, vmId);
                 return vmId;
             } else {
-                // VM doesn't exist in database - mark as shared (this is correct for CIP, NPP, etc.)
                 log.debug("Extracted VM name '{}' not found in database - marking as shared", extractedVmName);
             }
         }
 
-        // No VM found - this is a shared resource
         return null;
     }
 

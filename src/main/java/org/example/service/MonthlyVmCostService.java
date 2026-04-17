@@ -2,6 +2,8 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.invoiceVmCostDTOs.VmCostByMonthDto;
+import org.example.dto.invoiceVmCostDTOs.VmCostHistoryResponse;
 import org.example.entity.MonthlyCost;
 import org.example.entity.MonthlyVmCost;
 import org.example.entity.Vm;
@@ -116,5 +118,130 @@ public class MonthlyVmCostService {
         log.info("Saved {} records for {}-{}", costsToSave.size(), year, month);
         return String.format("Successfully calculated and saved costs for %d VMs for month %d/%d",
                 costsToSave.size(), month, year);
+        
     }
+    @Transactional(readOnly = true)
+    public VmCostHistoryResponse getVmCostHistory(int index) {
+        int monthsPerPage = 6;
+
+        List<Object[]> distinctMonths = monthlyVmCostRepository.findDistinctYearMonths();
+
+        if (distinctMonths.isEmpty()) {
+            return VmCostHistoryResponse.builder()
+                    .vmCostHistory(List.of())
+                    .index(index)
+                    .hasNext(false)
+                    .hasPrevious(false)
+                    .months(List.of())
+                    .build();
+        }
+
+        List<Integer> allYearMonths = distinctMonths.stream()
+                .map(arr -> (int)arr[0] * 100 + (int)arr[1])
+                .sorted(Collections.reverseOrder())
+                .collect(Collectors.toList());
+
+        int startIndex = index * monthsPerPage;
+        int endIndex = Math.min(startIndex + monthsPerPage, allYearMonths.size());
+
+        if (startIndex >= allYearMonths.size()) {
+            return VmCostHistoryResponse.builder()
+                    .vmCostHistory(List.of())
+                    .index(index)
+                    .hasNext(false)
+                    .hasPrevious(index > 0)
+                    .months(List.of())
+                    .build();
+        }
+
+        List<Integer> windowYearMonths = allYearMonths.subList(startIndex, endIndex);
+
+        
+        List<String> sharedMonths = windowYearMonths.stream()
+                .map(yearMonth -> {
+                    int year = yearMonth / 100;
+                    int month = yearMonth % 100;
+                    return String.format("%d-%02d", year, month);
+                })
+                .collect(Collectors.toList());
+
+        int minYearMonth = windowYearMonths.get(windowYearMonths.size() - 1);
+        int maxYearMonth = windowYearMonths.get(0);
+
+        List<MonthlyVmCost> costsInWindow = monthlyVmCostRepository.findByYearMonthRange(minYearMonth, maxYearMonth);
+
+        Map<Long, List<MonthlyVmCost>> costsByVm = costsInWindow.stream()
+                .collect(Collectors.groupingBy(c -> c.getVm().getId()));
+
+        List<VmCostHistoryResponse.VmCostHistory> vmCostHistories = new ArrayList<>();
+
+        for (Map.Entry<Long, List<MonthlyVmCost>> entry : costsByVm.entrySet()) {
+            Long vmId = entry.getKey();
+            List<MonthlyVmCost> vmCosts = entry.getValue();
+
+            String vmName = vmRepository.findById(vmId)
+                    .map(Vm::getName)
+                    .orElse("Unknown VM");
+
+            Map<Integer, BigDecimal> costByYearMonth = vmCosts.stream()
+                    .collect(Collectors.toMap(
+                            c -> c.getYear() * 100 + c.getMonth(),
+                            MonthlyVmCost::getTotalCost
+                    ));
+
+            List<Double> orderedCosts = new ArrayList<>();
+
+            for (int yearMonth : windowYearMonths) {
+                BigDecimal cost = costByYearMonth.getOrDefault(yearMonth, BigDecimal.ZERO);
+                double roundedCost = cost.setScale(2, RoundingMode.HALF_UP).doubleValue();
+                orderedCosts.add(roundedCost);
+            }
+
+            vmCostHistories.add(VmCostHistoryResponse.VmCostHistory.builder()
+                    .vmId(vmId)
+                    .vmName(vmName)
+                    .costs(orderedCosts)
+                    .build());
+        }
+
+        boolean hasNext = endIndex < allYearMonths.size();
+        boolean hasPrevious = index > 0;
+
+        return VmCostHistoryResponse.builder()
+                .vmCostHistory(vmCostHistories)
+                .index(index)
+                .hasNext(hasNext)
+                .hasPrevious(hasPrevious)
+                .months(sharedMonths)  
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<VmCostByMonthDto> getVmCostsByMonthAndYear(Integer year, Integer month) {
+        log.info("Fetching VM costs for year: {}, month: {}", year, month);
+
+        List<MonthlyVmCost> costs;
+
+        if (year != null && month != null) {
+            costs = monthlyVmCostRepository.findByYearAndMonth(year, month);
+        } else if (year != null) {
+            costs = monthlyVmCostRepository.findByYear(year);
+        } else if (month != null) {
+            costs = monthlyVmCostRepository.findByMonth(month);
+        } else {
+            costs = monthlyVmCostRepository.findAll();
+        }
+
+        List<VmCostByMonthDto> result = costs.stream()
+                .map(cost -> VmCostByMonthDto.builder()
+                        .vmId(cost.getVm().getId())
+                        .vmName(cost.getVm().getName())
+                        .totalCost(cost.getTotalCost().setScale(2, RoundingMode.HALF_UP).doubleValue())
+                        .build())
+                .collect(Collectors.toList());
+
+        log.info("Found {} VM costs for year: {}, month: {}", result.size(), year, month);
+        return result;
+    }
+
 }

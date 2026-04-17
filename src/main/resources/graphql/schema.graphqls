@@ -112,8 +112,9 @@ type SchedulerStatusMap {
 type VmPublicIp {
     id: ID!
     vmName: String!
-    ipAddress: String!
+    ipAddress: String
     domainName: String
+    billingType : String!
 }
 
 type VmDto {
@@ -161,6 +162,47 @@ type InvoicePageResponse {
 type CostAmountsResponse {
     amounts: [Float!]!
     months: [String!]!
+}
+
+type VmCostHistory {
+    vmId: ID!
+    vmName: String!
+    costs: [Float!]!
+}
+
+type VmCostHistoryResponse {
+    vmCostHistory: [VmCostHistory!]!
+    months: [String!]!
+    index: Int!
+    hasNext: Boolean!
+    hasPrevious: Boolean!
+}
+
+type LinkedVm {
+    vmName: String!
+}
+type ReservationWithVms {
+    displayName: String!
+    vmType: String!
+    purchaseDateTime: String!
+    expiryDateTime: String!
+    linkedVms: [LinkedVm!]!
+}
+
+type VmCostByMonth {
+    vmId: ID!
+    vmName: String!
+    totalCost: Float!
+}
+
+type CostByService {
+    serviceName: String!
+    totalCost: Float!
+}
+
+type CostByMeter {
+    meterName: String!
+    totalCost: Float!
 }
 
 #  MUTATIONS 
@@ -225,6 +267,10 @@ type Query {
 
     # Monthly Cost
     monthlyCosts(year: Int!, month: Int!): [MonthlyCost!]!
+    getTotalCostsByService(year: Int!, month: Int!): [CostByService!]!
+    getTotalCostsByMeter(year: Int!, month: Int!): [CostByMeter!]!
+    getVmCostHistory(index: Int!): VmCostHistoryResponse!
+    getVmCostsByMonthAndYear(year: Int, month: Int): [VmCostByMonth!]!
     vmCosts(vmId: ID!, year: Int!, month: Int!): [MonthlyCost!]!
     sharedCosts(year: Int!, month: Int!): [MonthlyCost!]!
 
@@ -236,6 +282,9 @@ type Query {
 
     # infrastructure query
     getAllInfrastructure: InfrastructureResponse!
+
+    # Reservation Queries
+    getActiveReservationsWithLinkedVms: [ReservationWithVms!]!
 
 
 }

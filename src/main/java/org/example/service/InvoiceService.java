@@ -79,7 +79,7 @@ public class InvoiceService {
                         .invoiceId(inv.getInvoiceId())
                         .status(inv.getStatus())
                         .totalAmount(inv.getTotalAmount())
-                        .monthYear(inv.getInvoiceDate().getMonth().toString() + " " + inv.getInvoiceDate().getYear())
+                        .monthYear(inv.getBillingPeriodStart().getMonth().toString() + " " + inv.getBillingPeriodStart().getYear())
                         .build())
                 .collect(Collectors.toList());
 

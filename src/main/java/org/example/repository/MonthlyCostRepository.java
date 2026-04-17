@@ -17,14 +17,16 @@ public interface MonthlyCostRepository extends JpaRepository<MonthlyCost, Long> 
     @Query("DELETE FROM MonthlyCost m WHERE m.month = :month AND m.year = :year")
     int deleteByMonthAndYear(@Param("month") int month, @Param("year") int year);
 
-    List<MonthlyCost> findByMonthAndYearOrderByServiceNameAscMeterNameAsc(int month, int year);
+    @Query("SELECT m.serviceName, SUM(m.cost) FROM MonthlyCost m " +
+            "WHERE m.month = :month AND m.year = :year " +
+            "GROUP BY m.serviceName")
+    List<Object[]> sumCostsByService(@Param("month") int month, @Param("year") int year);
 
-    List<MonthlyCost> findByVmIdAndMonthAndYear(Long vmId, int month, int year);
+    @Query("SELECT m.meterName, SUM(m.cost) FROM MonthlyCost m " +
+            "WHERE m.month = :month AND m.year = :year " +
+            "GROUP BY m.meterName")
+    List<Object[]> sumCostsByMeter(@Param("month") int month, @Param("year") int year);
 
     List<MonthlyCost> findByMonthAndYear(int month, int year);
 
-    List<MonthlyCost> findByIsSharedTrueAndMonthAndYear(int month, int year);
-
-    @Query("SELECT SUM(m.cost) FROM MonthlyCost m WHERE m.vmId = :vmId AND m.month = :month AND m.year = :year")
-    BigDecimal getTotalCostForVm(@Param("vmId") Long vmId, @Param("month") int month, @Param("year") int year);
 }

@@ -1,5 +1,6 @@
 package org.example.repository;
 
+import org.example.entity.MonthlyVmCost;
 import org.example.entity.Vm;
 import org.example.enums.BillingType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -39,6 +40,13 @@ public interface VmRepository extends JpaRepository<Vm, Long> {
 
     @Query("SELECT v FROM Vm v")
     List<Vm> findAllVmsWithoutTags();
+
+    @Query("SELECT v FROM Vm v WHERE v.billingType = :billingType")
+    List<Vm> findByBillingType(BillingType billingType);
+
+    @Query("SELECT v FROM Vm v WHERE v.billingType = 'RESERVATION'")
+    List<Vm> findAllReservationVms();
+
 
     @Modifying
     @Transactional

@@ -155,12 +155,12 @@ public class VmService {
 
     public List<VmPublicIpDto> getAllVmsWithPublicIp() {
         return vmRepository.findAll().stream()
-                .filter(vm -> vm.getPublicIpAddress() != null && !vm.getPublicIpAddress().isEmpty())
                 .map(vm -> new VmPublicIpDto(
                         vm.getId(),
                         vm.getName(),
                         vm.getPublicIpAddress(),
-                        vm.getDomainName()
+                        vm.getDomainName(),
+                        vm.getBillingType() != null ? vm.getBillingType().toString() : "PAYG"
                 ))
                 .collect(Collectors.toList());
     }
@@ -201,12 +201,14 @@ public class VmService {
         public String vmName;
         public String ipAddress;
         public String domainName;
+        public String billingType;
 
-        public VmPublicIpDto(Long id, String vmName, String ipAddress, String domainName) {
+        public VmPublicIpDto(Long id, String vmName, String ipAddress, String domainName, String billingType) {
             this.id = id;
             this.vmName = vmName;
             this.ipAddress = ipAddress;
             this.domainName = domainName;
+            this.billingType = billingType;
         }
     }
 
