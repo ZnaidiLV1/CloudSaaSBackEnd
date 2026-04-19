@@ -205,7 +205,43 @@ type CostByMeter {
     totalCost: Float!
 }
 
-#  MUTATIONS 
+type DailyPerformance {
+    date: String!
+    maxCpu: Float!
+    maxCpuTime: String!
+    maxRamPercentage: Float!
+    maxRamTime: String!
+}
+
+type VmPerformanceResponse {
+    vmId: ID!
+    vmName: String!
+    vmType: String!
+    dailyPerformances: [DailyPerformance!]!
+}
+
+type VmPerformanceSummary {
+    vmId: ID!
+    vmName: String!
+    avgMaxCpu: Float!
+    avgCpu: Float!
+    avgMaxRamPercentage: Float!
+    avgRamPercentage: Float!
+}
+
+type DailyAvailableRam {
+    date: String!
+    availableRamPercentage: Float!
+    timestamp: String!
+}
+
+type VmAvailableRamResponse {
+    vmId: ID!
+    vmName: String!
+    dailyAvailableRam: [DailyAvailableRam!]!
+}
+
+#  MUTATIONS
 type Mutation {
     # Auth
     login(email: String!, password: String!): AuthPayload!
@@ -285,6 +321,23 @@ type Query {
 
     # Reservation Queries
     getActiveReservationsWithLinkedVms: [ReservationWithVms!]!
+
+    # Performance queries
+    getVmPerformance(vmId: ID!
+        startDate: String!
+        endDate: String!
+    ): VmPerformanceResponse!
+    getVmPerformanceSummary(
+        vmId: ID!
+        startDate: String!
+        endDate: String!
+    ): VmPerformanceSummary!
+
+    getVmAvailableRam(
+        vmId: ID!
+        startDate: String!
+        endDate: String!
+    ): VmAvailableRamResponse!
 
 
 }
