@@ -241,6 +241,48 @@ type VmAvailableRamResponse {
     dailyAvailableRam: [DailyAvailableRam!]!
 }
 
+type AlertDto {
+    alertName: String!
+    occurredAt: String!
+    monitorCondition: String!
+    description: String
+    vmName: String!
+}
+
+type AlertPageResponse {
+    alerts: [AlertDto!]!
+    vmName: String!
+    index: Int!
+    hasNext: Boolean!
+    hasPrevious: Boolean!
+    totalCount: Int!
+}
+
+type AlertGroupDto {
+    alertName: String!
+    count: Int!
+}
+
+type AlertSummaryResponse {
+    vmId: ID!
+    vmName: String!
+    alertGroups: [AlertGroupDto!]!
+    firedCount: Int!
+    resolvedCount: Int!
+    totalCount: Int!
+}
+
+type HeatmapDataDto {
+    date: String!
+    count: Int!
+}
+
+type AlertHeatmapResponse {
+    vmId: ID!
+    vmName: String!
+    heatmapData: [HeatmapDataDto!]!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -338,6 +380,20 @@ type Query {
         startDate: String!
         endDate: String!
     ): VmAvailableRamResponse!
+
+    # Alerts
+    alertsByVmId(
+        vmId: ID!
+        index: Int!
+    ): AlertPageResponse!
+
+    alertSummary(
+        vmId: ID!
+    ): AlertSummaryResponse!
+
+    alertHeatmap(
+        vmId: ID!
+    ): AlertHeatmapResponse!
 
 
 }

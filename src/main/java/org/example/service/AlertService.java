@@ -2,17 +2,25 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.AlertsDto.*;
 import org.example.entity.AzureAlert;
 import org.example.entity.Vm;
 import org.example.repository.AzureAlertRepository;
 import org.example.repository.VmRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -69,6 +77,161 @@ public class AlertService {
         }
 
         log.info("=== SYNC LAST 30 DAYS ALERTS COMPLETE ===");
+    }
+
+    public AlertPageResponse getAlertsByVmId(Long vmId, int index) {
+        int pageSize = 6;
+
+        Pageable pageable = PageRequest.of(index, pageSize, Sort.by(Sort.Direction.DESC, "occurredAt"));
+        Page<AzureAlert> alertsPage;
+        int totalCount;
+        String vmName = null;
+
+        if (vmId == 0) {
+            alertsPage = alertRepository.findAllWithVm(pageable);
+            totalCount = (int) alertRepository.count();
+            vmName = "All VMs";
+        } else {
+            Vm vm = vmRepository.findById(vmId)
+                    .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+            vmName = vm.getName();
+            alertsPage = alertRepository.findByVmIdWithVm(vmId, pageable);
+            totalCount = Math.toIntExact(alertRepository.countByVmId(vmId));
+        }
+
+        List<org.example.dto.AlertsDto.AlertDto> alerts = alertsPage.getContent().stream()
+                .map(alert -> {
+                    String cleanAlertName = alert.getAlertName();
+                    if (cleanAlertName != null && cleanAlertName.contains("] ")) {
+                        cleanAlertName = cleanAlertName.substring(cleanAlertName.indexOf("] ") + 2);
+                    }
+                    return org.example.dto.AlertsDto.AlertDto.builder()
+                            .alertName(cleanAlertName)
+                            .occurredAt(alert.getOccurredAt())
+                            .monitorCondition(alert.getMonitorCondition())
+                            .description(alert.getDescription())
+                            .vmName(alert.getVm().getName())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        boolean hasNext = (long) (index + 1) * pageSize < totalCount;
+        boolean hasPrevious = index > 0;
+
+        return AlertPageResponse.builder()
+                .alerts(alerts)
+                .vmName(vmName)
+                .index(index)
+                .hasNext(hasNext)
+                .hasPrevious(hasPrevious)
+                .totalCount(totalCount)
+                .build();
+    }
+
+    public AlertSummaryResponse getAlertSummary(Long vmId) {
+        String vmName;
+        Long totalCount;
+        Long firedCount;
+        Long resolvedCount;
+        List<AlertGroupDto> alertGroups;
+
+        if (vmId == 0) {
+            vmName = "All VMs";
+            totalCount = alertRepository.count();
+            firedCount = alertRepository.countByMonitorCondition("Fired");
+            resolvedCount = alertRepository.countByMonitorCondition("Resolved");
+
+            List<Object[]> groupResults = alertRepository.countGroupByAlertName();
+            alertGroups = groupResults.stream()
+                    .map(result -> {
+                        String alertName = (String) result[0];
+                        if (alertName != null && alertName.contains("] ")) {
+                            alertName = alertName.substring(alertName.indexOf("] ") + 2);
+                        }
+                        return AlertGroupDto.builder()
+                                .alertName(alertName)
+                                .count((Long) result[1])
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            Vm vm = vmRepository.findById(vmId)
+                    .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+            vmName = vm.getName();
+            totalCount = alertRepository.countByVmId(vmId);
+            firedCount = alertRepository.countByVmIdAndMonitorCondition(vmId, "Fired");
+            resolvedCount = alertRepository.countByVmIdAndMonitorCondition(vmId, "Resolved");
+
+            List<Object[]> groupResults = alertRepository.countByVmIdGroupByAlertName(vmId);
+            alertGroups = groupResults.stream()
+                    .map(result -> {
+                        String alertName = (String) result[0];
+                        if (alertName != null && alertName.contains("] ")) {
+                            alertName = alertName.substring(alertName.indexOf("] ") + 2);
+                        }
+                        return AlertGroupDto.builder()
+                                .alertName(alertName)
+                                .count((Long) result[1])
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        return AlertSummaryResponse.builder()
+                .vmId(vmId)
+                .vmName(vmName)
+                .alertGroups(alertGroups)
+                .firedCount(firedCount)
+                .resolvedCount(resolvedCount)
+                .totalCount(totalCount)
+                .build();
+    }
+
+    public AlertHeatmapResponse getAlertHeatmap(Long vmId) {
+        LocalDate endDate = LocalDate.now().minusDays(1);
+        LocalDate startDate = endDate.minusDays(27);
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+
+        String vmName;
+        if (vmId == 0) {
+            vmName = "All VMs";
+        } else {
+            Vm vm = vmRepository.findById(vmId)
+                    .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+            vmName = vm.getName();
+        }
+
+        List<Object[]> results = alertRepository.getAlertCountsByDate(vmId, startDateTime, endDateTime);
+
+        Map<String, Long> countMap = new HashMap<>();
+        for (Object[] result : results) {
+            java.sql.Date sqlDate = (java.sql.Date) result[0];
+            LocalDate date = sqlDate.toLocalDate();
+            String dateStr = date.toString();
+            Long count = (Long) result[1];
+            countMap.put(dateStr, count);
+        }
+
+        List<HeatmapDataDto> heatmapData = new ArrayList<>();
+
+        LocalDate current = startDate;
+        while (!current.isAfter(endDate)) {
+            String dateStr = current.toString();
+            Long count = countMap.getOrDefault(dateStr, 0L);
+            heatmapData.add(HeatmapDataDto.builder()
+                    .date(dateStr)
+                    .count(count)
+                    .build());
+            current = current.plusDays(1);
+        }
+
+        return AlertHeatmapResponse.builder()
+                .vmId(vmId)
+                .vmName(vmName)
+                .heatmapData(heatmapData)
+                .build();
     }
 
     private void saveOrUpdateAlert(AzureAlert newAlert) {
