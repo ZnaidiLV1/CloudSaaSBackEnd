@@ -1,11 +1,7 @@
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
-import org.example.dto.performanceDto.DailyAvailableRam;
-import org.example.dto.performanceDto.DailyPerformance;
-import org.example.dto.performanceDto.VmAvailableRamResponse;
-import org.example.dto.performanceDto.VmPerformanceResponse;
-import org.example.dto.performanceDto.VmPerformanceSummary;
+import org.example.dto.performanceDto.*;
 import org.example.entity.PerformanceMetric;
 import org.example.entity.Vm;
 import org.example.repository.PerformanceMetricRepository;
@@ -30,6 +26,14 @@ public class PerformanceService {
     private static final double TOTAL_RAM_GB = 8.0;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    private double toUsedRamPercent(double freeGb) {
+        return ((TOTAL_RAM_GB - freeGb) / TOTAL_RAM_GB) * 100.0;
+    }
+
+    private double toAvailableRamPercent(double freeGb) {
+        return (freeGb / TOTAL_RAM_GB) * 100.0;
+    }
 
     public void syncMetricsFromAzure() {
         azureMonitoringService.syncMetricsFromAzure();
@@ -61,12 +65,10 @@ public class PerformanceService {
                 .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
 
         List<LocalDate> dateRange = generateDateRange(start, end);
-
         List<DailyPerformance> dailyPerformances = new ArrayList<>();
 
         for (LocalDate date : dateRange) {
-            DailyPerformance dailyPerf = calculateDailyPerformance(vmId, date);
-            dailyPerformances.add(dailyPerf);
+            dailyPerformances.add(calculateDailyPerformance(vmId, date));
         }
 
         return VmPerformanceResponse.builder()
@@ -102,18 +104,13 @@ public class PerformanceService {
             }
         }
 
-        double avgMaxCpu = calculateAverage(dailyMaxCpus);
-        double avgCpu = calculateAverage(dailyAvgCpus);
-        double avgMaxRam = calculateAverage(dailyMaxRams);
-        double avgRam = calculateAverage(dailyAvgRams);
-
         return VmPerformanceSummary.builder()
                 .vmId(vmId)
                 .vmName(vm.getName())
-                .avgMaxCpu(Math.round(avgMaxCpu * 100.0) / 100.0)
-                .avgCpu(Math.round(avgCpu * 100.0) / 100.0)
-                .avgMaxRamPercentage(Math.round(avgMaxRam * 100.0) / 100.0)
-                .avgRamPercentage(Math.round(avgRam * 100.0) / 100.0)
+                .avgMaxCpu(Math.round(calculateAverage(dailyMaxCpus) * 100.0) / 100.0)
+                .avgCpu(Math.round(calculateAverage(dailyAvgCpus) * 100.0) / 100.0)
+                .avgMaxRamPercentage(Math.round(calculateAverage(dailyMaxRams) * 100.0) / 100.0)
+                .avgRamPercentage(Math.round(calculateAverage(dailyAvgRams) * 100.0) / 100.0)
                 .build();
     }
 
@@ -128,8 +125,7 @@ public class PerformanceService {
         List<DailyAvailableRam> dailyAvailableRams = new ArrayList<>();
 
         for (LocalDate date : dateRange) {
-            DailyAvailableRam dailyAvailable = calculateDailyAvailableRam(vmId, date);
-            dailyAvailableRams.add(dailyAvailable);
+            dailyAvailableRams.add(calculateDailyAvailableRam(vmId, date));
         }
 
         return VmAvailableRamResponse.builder()
@@ -153,13 +149,12 @@ public class PerformanceService {
                     .build();
         }
 
-        PerformanceMetric minRamMetric = metrics.stream()
-                .filter(m -> m.getRamMin() != null)
-                .min(Comparator.comparing(PerformanceMetric::getRamMin, Comparator.nullsLast(Double::compareTo))
-                        .thenComparing(m -> m.getSavedAt() != null ? m.getSavedAt() : LocalDateTime.MAX, Comparator.nullsLast(Comparator.naturalOrder())))
+        PerformanceMetric maxRamMetric = metrics.stream()
+                .filter(m -> m.getRamMax() != null)
+                .max(Comparator.comparing(PerformanceMetric::getRamMax, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        if (minRamMetric == null || minRamMetric.getRamMin() == null) {
+        if (maxRamMetric == null || maxRamMetric.getRamMax() == null) {
             return DailyAvailableRam.builder()
                     .date(date.format(DATE_FORMATTER))
                     .availableRamPercentage(0.0)
@@ -167,18 +162,159 @@ public class PerformanceService {
                     .build();
         }
 
-        double usedRamPercentage = (minRamMetric.getRamMin() / TOTAL_RAM_GB) * 100.0;
-        double availableRamPercentage = 100.0 - usedRamPercentage;
-        availableRamPercentage = Math.round(availableRamPercentage * 100.0) / 100.0;
+        double availableRamPercentage = 100- Math.round(toAvailableRamPercent(maxRamMetric.getRamMax()) * 100.0) / 100.0;
 
-        String timestamp = minRamMetric.getSavedAt() != null
-                ? minRamMetric.getSavedAt().format(TIME_FORMATTER)
+        String timestamp = maxRamMetric.getSavedAt() != null
+                ? maxRamMetric.getSavedAt().format(TIME_FORMATTER)
                 : "";
 
         return DailyAvailableRam.builder()
                 .date(date.format(DATE_FORMATTER))
                 .availableRamPercentage(availableRamPercentage)
                 .timestamp(timestamp)
+                .build();
+    }
+
+    public VmDailyRamResponse getVmDailyRam(Long vmId, String date) {
+        LocalDate targetDate = parseDate(date);
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<PerformanceMetric> metrics = metricRepository.findByVmIdAndSavedAtBetweenOrderBySavedAtAsc(vmId, startOfDay, endOfDay);
+
+        List<HourlyRamValue> hourlyRam = new ArrayList<>();
+
+        for (PerformanceMetric metric : metrics) {
+            if (metric.getRamMin() != null) {
+                String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
+                double ramUsedPercentage = Math.round(toUsedRamPercent(metric.getRamMin()) * 100.0) / 100.0;
+                hourlyRam.add(HourlyRamValue.builder()
+                        .hour(hour)
+                        .ramUsedPercentage(ramUsedPercentage)
+                        .build());
+            }
+        }
+
+        return VmDailyRamResponse.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .date(targetDate.format(DATE_FORMATTER))
+                .hourlyRam(hourlyRam)
+                .build();
+    }
+
+    public VmDailyAvailableRamResponse getVmDailyAvailableRam(Long vmId, String date) {
+        LocalDate targetDate = parseDate(date);
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<PerformanceMetric> metrics = metricRepository.findByVmIdAndSavedAtBetweenOrderBySavedAtAsc(vmId, startOfDay, endOfDay);
+
+        List<HourlyAvailableRamValue> hourlyAvailableRam = new ArrayList<>();
+
+        for (PerformanceMetric metric : metrics) {
+            if (metric.getRamMax() != null) {
+                String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
+                double availableRamPercentage =100- Math.round(toAvailableRamPercent(metric.getRamMax()) * 100.0) / 100.0;
+                hourlyAvailableRam.add(HourlyAvailableRamValue.builder()
+                        .hour(hour)
+                        .availableRamPercentage(availableRamPercentage)
+                        .build());
+            }
+        }
+
+        return VmDailyAvailableRamResponse.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .date(targetDate.format(DATE_FORMATTER))
+                .hourlyAvailableRam(hourlyAvailableRam)
+                .build();
+    }
+
+    public VmDailyCpuResponse getVmDailyCpu(Long vmId, String date) {
+        LocalDate targetDate = parseDate(date);
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<PerformanceMetric> metrics = metricRepository.findByVmIdAndSavedAtBetweenOrderBySavedAtAsc(vmId, startOfDay, endOfDay);
+
+        List<HourlyCpuValue> hourlyCpu = new ArrayList<>();
+
+        for (PerformanceMetric metric : metrics) {
+            if (metric.getCpuMax() != null) {
+                String hour = metric.getSavedAt().format(TIME_FORMATTER);
+                hourlyCpu.add(HourlyCpuValue.builder()
+                        .hour(hour)
+                        .cpuMax(metric.getCpuMax())
+                        .build());
+            }
+        }
+
+        return VmDailyCpuResponse.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .date(targetDate.format(DATE_FORMATTER))
+                .hourlyCpu(hourlyCpu)
+                .build();
+    }
+
+    public VmMetricTotalResponse getVmMetricTotal(Long vmId, String startDate, String endDate, String metricType) {
+        LocalDate start = parseDate(startDate);
+        LocalDate end = parseDate(endDate);
+        LocalDateTime startDateTime = start.atStartOfDay();
+        LocalDateTime endDateTime = end.atTime(LocalTime.MAX);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<Object[]> results;
+
+        switch (metricType.toUpperCase()) {
+            case "DISK_READ":
+                results = metricRepository.sumDiskReadByDate(vmId, startDateTime, endDateTime);
+                break;
+            case "DISK_WRITE":
+                results = metricRepository.sumDiskWriteByDate(vmId, startDateTime, endDateTime);
+                break;
+            case "NETWORK_IN":
+                results = metricRepository.sumNetworkInByDate(vmId, startDateTime, endDateTime);
+                break;
+            case "NETWORK_OUT":
+                results = metricRepository.sumNetworkOutByDate(vmId, startDateTime, endDateTime);
+                break;
+            default:
+                throw new RuntimeException("Invalid metric type: " + metricType);
+        }
+
+        List<DailyMetricTotal> dailyTotals = new ArrayList<>();
+        for (Object[] result : results) {
+            java.sql.Date sqlDate = (java.sql.Date) result[0];
+            Double total = (Double) result[1];
+
+            if (total == null) {
+                total = 0.0;
+            }
+
+            dailyTotals.add(DailyMetricTotal.builder()
+                    .date(sqlDate.toLocalDate().toString())
+                    .total(Math.round(total * 1000.0) / 1000.0)
+                    .build());
+        }
+
+        return VmMetricTotalResponse.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .metricType(metricType)
+                .dailyTotals(dailyTotals)
                 .build();
     }
 
@@ -202,30 +338,26 @@ public class PerformanceService {
 
         PerformanceMetric maxCpuMetric = metrics.stream()
                 .filter(m -> m.getCpuMax() != null)
-                .max(Comparator.comparing(PerformanceMetric::getCpuMax, Comparator.nullsLast(Double::compareTo))
-                        .thenComparing(m -> m.getSavedAt() != null ? m.getSavedAt() : LocalDateTime.MIN, Comparator.nullsLast(Comparator.naturalOrder())))
+                .max(Comparator.comparing(PerformanceMetric::getCpuMax, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        PerformanceMetric maxRamMetric = metrics.stream()
-                .filter(m -> m.getRamMax() != null)
-                .max(Comparator.comparing((PerformanceMetric m) -> {
-                            Double ramMax = m.getRamMax();
-                            return ramMax != null ? (ramMax / TOTAL_RAM_GB) * 100.0 : -1.0;
-                        }, Comparator.nullsLast(Double::compareTo))
-                        .thenComparing(m -> m.getSavedAt() != null ? m.getSavedAt() : LocalDateTime.MIN, Comparator.nullsLast(Comparator.naturalOrder())))
+        // ramMin = least free GB = highest used RAM = peak usage moment
+        PerformanceMetric maxRamUsedMetric = metrics.stream()
+                .filter(m -> m.getRamMin() != null)
+                .min(Comparator.comparing(PerformanceMetric::getRamMin, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
         double maxRamPercentage = 0.0;
-        if (maxRamMetric != null && maxRamMetric.getRamMax() != null) {
-            maxRamPercentage = (maxRamMetric.getRamMax() / TOTAL_RAM_GB) * 100.0;
+        if (maxRamUsedMetric != null && maxRamUsedMetric.getRamMin() != null) {
+            maxRamPercentage = Math.round(toUsedRamPercent(maxRamUsedMetric.getRamMin()) * 100.0) / 100.0;
         }
 
         return DailyPerformance.builder()
                 .date(date.format(DATE_FORMATTER))
                 .maxCpu(maxCpuMetric != null && maxCpuMetric.getCpuMax() != null ? maxCpuMetric.getCpuMax() : 0.0)
                 .maxCpuTime(maxCpuMetric != null && maxCpuMetric.getSavedAt() != null ? maxCpuMetric.getSavedAt().format(TIME_FORMATTER) : "")
-                .maxRamPercentage(Math.round(maxRamPercentage * 100.0) / 100.0)
-                .maxRamTime(maxRamMetric != null && maxRamMetric.getSavedAt() != null ? maxRamMetric.getSavedAt().format(TIME_FORMATTER) : "")
+                .maxRamPercentage(maxRamPercentage)
+                .maxRamTime(maxRamUsedMetric != null && maxRamUsedMetric.getSavedAt() != null ? maxRamUsedMetric.getSavedAt().format(TIME_FORMATTER) : "")
                 .build();
     }
 
@@ -253,15 +385,17 @@ public class PerformanceService {
                 .average()
                 .orElse(0.0);
 
+        // ramMin = least free = most used → max used RAM % of the day
         double maxRamPercentage = metrics.stream()
-                .filter(m -> m.getRamMax() != null)
-                .mapToDouble(m -> (m.getRamMax() / TOTAL_RAM_GB) * 100.0)
+                .filter(m -> m.getRamMin() != null)
+                .mapToDouble(m -> toUsedRamPercent(m.getRamMin()))
                 .max()
                 .orElse(0.0);
 
+        // ramAvg = average free GB → average used RAM %
         double avgRamPercentage = metrics.stream()
                 .filter(m -> m.getRamAvg() != null)
-                .mapToDouble(m -> (m.getRamAvg() / TOTAL_RAM_GB) * 100.0)
+                .mapToDouble(m -> toUsedRamPercent(m.getRamAvg()))
                 .average()
                 .orElse(0.0);
 
@@ -269,9 +403,7 @@ public class PerformanceService {
     }
 
     private double calculateAverage(List<Double> values) {
-        if (values == null || values.isEmpty()) {
-            return 0.0;
-        }
+        if (values == null || values.isEmpty()) return 0.0;
         return values.stream()
                 .filter(v -> v != null)
                 .mapToDouble(Double::doubleValue)
@@ -280,8 +412,7 @@ public class PerformanceService {
     }
 
     private LocalDate parseDate(String dateStr) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        return LocalDate.parse(dateStr, formatter);
+        return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
 
     private List<LocalDate> generateDateRange(LocalDate start, LocalDate end) {

@@ -283,6 +283,61 @@ type AlertHeatmapResponse {
     heatmapData: [HeatmapDataDto!]!
 }
 
+type HourlyCpuValue {
+    hour: String!
+    cpuMax: Float!
+}
+
+type VmDailyCpuResponse {
+    vmId: ID!
+    vmName: String!
+    date: String!
+    hourlyCpu: [HourlyCpuValue!]!
+}
+
+type HourlyRamValue {
+    hour: String!
+    ramUsedPercentage: Float!
+}
+
+type VmDailyRamResponse {
+    vmId: ID!
+    vmName: String!
+    date: String!
+    hourlyRam: [HourlyRamValue!]!
+}
+
+type HourlyAvailableRamValue {
+    hour: String!
+    availableRamPercentage: Float!
+}
+
+type VmDailyAvailableRamResponse {
+    vmId: ID!
+    vmName: String!
+    date: String!
+    hourlyAvailableRam: [HourlyAvailableRamValue!]!
+}
+
+enum MetricType {
+    DISK_READ
+    DISK_WRITE
+    NETWORK_IN
+    NETWORK_OUT
+}
+
+type DailyMetricTotal {
+    date: String!
+    total: Float!
+}
+
+type VmMetricTotalResponse {
+    vmId: ID!
+    vmName: String!
+    metricType: MetricType!
+    dailyTotals: [DailyMetricTotal!]!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -395,5 +450,25 @@ type Query {
         vmId: ID!
     ): AlertHeatmapResponse!
 
+    getVmDailyCpu(
+        vmId: ID!
+        date: String!
+    ): VmDailyCpuResponse!
 
+    getVmDailyRam(
+        vmId: ID!
+        date: String!
+    ): VmDailyRamResponse!
+
+    getVmDailyAvailableRam(
+        vmId: ID!
+        date: String!
+    ): VmDailyAvailableRamResponse!
+
+    getVmMetricTotal(
+        vmId: ID!
+        startDate: String!
+        endDate: String!
+        metricType: MetricType!
+    ): VmMetricTotalResponse!
 }

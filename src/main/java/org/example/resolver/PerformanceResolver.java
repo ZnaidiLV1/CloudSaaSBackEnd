@@ -1,14 +1,14 @@
 package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
-import org.example.dto.performanceDto.VmAvailableRamResponse;
-import org.example.dto.performanceDto.VmPerformanceResponse;
-import org.example.dto.performanceDto.VmPerformanceSummary;
+import lombok.extern.slf4j.Slf4j;
+import org.example.dto.performanceDto.*;
 import org.example.service.PerformanceService;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class PerformanceResolver {
@@ -40,5 +40,39 @@ public class PerformanceResolver {
             @Argument String endDate
     ) {
         return performanceService.getVmAvailableRam(vmId, startDate, endDate);
+    }
+
+    @QueryMapping
+    public VmDailyCpuResponse getVmDailyCpu(
+            @Argument Long vmId,
+            @Argument String date
+    ) {
+        return performanceService.getVmDailyCpu(vmId, date);
+    }
+
+    @QueryMapping
+    public VmDailyRamResponse getVmDailyRam(
+            @Argument Long vmId,
+            @Argument String date
+    ) {
+        return performanceService.getVmDailyRam(vmId, date);
+    }
+
+    @QueryMapping
+    public VmDailyAvailableRamResponse getVmDailyAvailableRam(
+            @Argument Long vmId,
+            @Argument String date
+    ) {
+        return performanceService.getVmDailyAvailableRam(vmId, date);
+    }
+
+    @QueryMapping
+    public VmMetricTotalResponse getVmMetricTotal(
+            @Argument Long vmId,
+            @Argument String startDate,
+            @Argument String endDate,
+            @Argument String metricType
+    ) {
+        return performanceService.getVmMetricTotal(vmId, startDate, endDate, metricType);
     }
 }

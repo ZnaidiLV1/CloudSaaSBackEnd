@@ -20,20 +20,18 @@ public class PerformanceMetric {
     @JoinColumn(name = "vm_id", nullable = false)
     private Vm vm;
 
-    // CPU stats (%)
     private Double cpuMax;
     private Double cpuMin;
     private Double cpuAvg;
 
-    // RAM stats (GB)
     private Double ramMax;
     private Double ramMin;
     private Double ramAvg;
 
-    // Disk read (bytes/sec)
-    private Double diskMax;
-    private Double diskMin;
-    private Double diskAvg;
+    private Double diskRead;
+    private Double diskWrite;
+    private Double networkIn;
+    private Double networkOut;
 
     private Double availabilityPercent;
 

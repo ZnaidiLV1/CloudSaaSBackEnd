@@ -26,19 +26,9 @@ public class AzureMonitoringService {
     public final TagRepository tagRepository;
     private final AzureResourceManager azure;
 
-
     @Value("${azure.subscription-id}")
     private String subscriptionId;
 
-    /*public List<String> listResources() {
-        try {
-            List<String> resources = new ArrayList<>();
-            azureResourceManager.resources().list().forEach(r -> resources.add(r.name()));
-            return resources;
-        } catch (Exception e) {
-            throw new RuntimeException("Azure connection failed: " + e.getMessage());
-        }
-    }*/
     public List<String> getAllVMProjectTags() {
         Set<String> projectNames = new HashSet<>();
 
@@ -51,7 +41,7 @@ public class AzureMonitoringService {
             if (tags != null && !tags.isEmpty()) {
                 for (Map.Entry<String, String> tag : tags.entrySet()) {
                     System.out.println("Tag: " + tag.getKey() + " = " + tag.getValue());
-                    projectNames.add(tag.getValue()); // Collect all tag values
+                    projectNames.add(tag.getValue());
                 }
             } else {
                 System.out.println("No tags assigned");
@@ -90,14 +80,21 @@ public class AzureMonitoringService {
 
         MetricsQueryResult result = metricsQueryClient.queryResource(
                 resourceId,
-                List.of("Percentage CPU", "Available Memory Bytes", "OS Disk Read Bytes/sec", "VmAvailabilityMetric")
+                List.of("Percentage CPU", "Available Memory Bytes", "OS Disk Read Bytes/sec", "OS Disk Write Bytes/sec", "Network In Total", "Network Out Total", "VmAvailabilityMetric")
         );
 
-        List<Double> cpuValues  = extractValues(result, "Percentage CPU");
-        List<Double> ramValues  = extractValues(result, "Available Memory Bytes")
+        List<Double> cpuValues       = extractValues(result, "Percentage CPU");
+        List<Double> ramValues       = extractValues(result, "Available Memory Bytes")
                 .stream().map(b -> b / (1024.0 * 1024 * 1024)).toList();
-        List<Double> diskValues = extractValues(result, "OS Disk Read Bytes/sec");
-        List<Double> availValues= extractValues(result, "VmAvailabilityMetric");
+        List<Double> diskReadValues  = extractValues(result, "OS Disk Read Bytes/sec")
+                .stream().map(b -> b / (1024.0 * 1024.0)).toList();
+        List<Double> diskWriteValues = extractValues(result, "OS Disk Write Bytes/sec")
+                .stream().map(b -> b / (1024.0 * 1024.0)).toList();
+        List<Double> networkInValues  = extractTotalValues(result, "Network In Total")
+                .stream().map(b -> b / (1024.0 * 1024.0)).toList();
+        List<Double> networkOutValues = extractTotalValues(result, "Network Out Total")
+                .stream().map(b -> b / (1024.0 * 1024.0)).toList();
+        List<Double> availValues     = extractValues(result, "VmAvailabilityMetric");
 
         double availabilityPercent = availValues.isEmpty() ? 100.0
                 : (availValues.stream().filter(v -> v >= 1.0).count()
@@ -111,18 +108,19 @@ public class AzureMonitoringService {
                 .ramMax(max(ramValues))
                 .ramMin(min(ramValues))
                 .ramAvg(avg(ramValues))
-                .diskMax(max(diskValues))
-                .diskMin(min(diskValues))
-                .diskAvg(avg(diskValues))
+                .diskRead(avg(diskReadValues))
+                .diskWrite(avg(diskWriteValues))
+                .networkIn(avg(networkInValues))
+                .networkOut(avg(networkOutValues))
                 .availabilityPercent(availabilityPercent)
                 .savedAt(LocalDateTime.now())
                 .build();
 
         metricRepository.save(metric);
-        log.info("Saved hourly metrics for VM {} | CPU avg={} max={} | Availability={}",
-                vm.getName(), round(metric.getCpuAvg()), round(metric.getCpuMax()), round(availabilityPercent));
+        log.info("Saved hourly metrics for VM {} | CPU avg={} max={} | Availability={} | DiskRead={} | NetworkIn={}",
+                vm.getName(), round(metric.getCpuAvg()), round(metric.getCpuMax()), round(availabilityPercent),
+                round(metric.getDiskRead()), round(metric.getNetworkIn()));
     }
-
 
     private String buildResourceId(Vm vm) {
         return String.format(
@@ -139,6 +137,19 @@ public class AzureMonitoringService {
                         .map(ts -> ts.getValues().stream()
                                 .filter(v -> v.getAverage() != null)
                                 .map(MetricValue::getAverage)
+                                .toList())
+                        .orElse(List.of()))
+                .orElse(List.of());
+    }
+
+    private List<Double> extractTotalValues(MetricsQueryResult result, String metricName) {
+        return result.getMetrics().stream()
+                .filter(m -> m.getMetricName().equalsIgnoreCase(metricName))
+                .findFirst()
+                .map(m -> m.getTimeSeries().stream().findFirst()
+                        .map(ts -> ts.getValues().stream()
+                                .filter(v -> v.getTotal() != null)
+                                .map(MetricValue::getTotal)
                                 .toList())
                         .orElse(List.of()))
                 .orElse(List.of());
