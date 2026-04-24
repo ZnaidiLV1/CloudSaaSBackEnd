@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MonthlyVmCostRepository extends JpaRepository<MonthlyVmCost, Long> {
 
@@ -19,6 +20,8 @@ public interface MonthlyVmCostRepository extends JpaRepository<MonthlyVmCost, Lo
     @Query("SELECT m FROM MonthlyVmCost m WHERE m.year = :year AND m.month = :month")
     List<MonthlyVmCost> findByMonthAndYear(@Param("year") int year, @Param("month") int month);
 
+    @Query("SELECT m FROM MonthlyVmCost m WHERE m.vm.id = :vmId AND m.year = :year AND m.month = :month")
+    Optional<MonthlyVmCost> findByVmIdAndYearAndMonth(@Param("vmId") Long vmId, @Param("year") int year, @Param("month") int month);
     
     @Query("SELECT MAX(m.year * 100 + m.month) FROM MonthlyVmCost m")
     Integer findNewestYearMonth();
@@ -42,4 +45,7 @@ public interface MonthlyVmCostRepository extends JpaRepository<MonthlyVmCost, Lo
     
     @Query("SELECT DISTINCT m.year, m.month FROM MonthlyVmCost m ORDER BY m.year DESC, m.month DESC")
     List<Object[]> findDistinctYearMonths();
+
+    @Query("SELECT m FROM MonthlyVmCost m WHERE m.vm.id = :vmId ORDER BY m.year DESC, m.month DESC")
+    List<MonthlyVmCost> findByVmIdOrderByYearMonthDesc(@Param("vmId") Long vmId);
 }

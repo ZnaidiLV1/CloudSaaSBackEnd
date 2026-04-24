@@ -2,8 +2,7 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dto.invoiceVmCostDTOs.VmCostByMonthDto;
-import org.example.dto.invoiceVmCostDTOs.VmCostHistoryResponse;
+import org.example.dto.invoiceVmCostDTOs.*;
 import org.example.entity.MonthlyCost;
 import org.example.entity.MonthlyVmCost;
 import org.example.entity.Vm;
@@ -15,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -242,6 +243,107 @@ public class MonthlyVmCostService {
 
         log.info("Found {} VM costs for year: {}, month: {}", result.size(), year, month);
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public VmCostDetailDto getVmCostDetail(Long vmId, int year, int month) {
+        log.info("Getting VM cost detail for VM: {}, year: {}, month: {}", vmId, year, month);
+
+        Optional<MonthlyVmCost> costOpt = monthlyVmCostRepository.findByVmIdAndYearAndMonth(vmId, year, month);
+
+        if (costOpt.isEmpty()) {
+            log.warn("No cost data found for VM: {}, year: {}, month: {}", vmId, year, month);
+            return VmCostDetailDto.builder()
+                    .vmId(vmId)
+                    .vmName("Unknown")
+                    .directCost(0.0)
+                    .reservationCost(0.0)
+                    .sharedCost(0.0)
+                    .totalCost(0.0)
+                    .build();
+        }
+
+        MonthlyVmCost cost = costOpt.get();
+
+        return VmCostDetailDto.builder()
+                .vmId(cost.getVm().getId())
+                .vmName(cost.getVm().getName())
+                .directCost(cost.getDirectCost().setScale(2, RoundingMode.HALF_UP).doubleValue())
+                .reservationCost(cost.getReservationCost().setScale(2, RoundingMode.HALF_UP).doubleValue())
+                .sharedCost(cost.getSharedCost().setScale(2, RoundingMode.HALF_UP).doubleValue())
+                .totalCost(cost.getTotalCost().setScale(2, RoundingMode.HALF_UP).doubleValue())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<VmCostByServiceDto> getVmCostsByServiceForVm(Long vmId, int year, int month) {
+        log.info("Getting VM costs by service for VM: {}, year: {}, month: {}", vmId, year, month);
+
+        List<Object[]> results = monthlyCostRepository.findCostsByServiceForVm(year, month, vmId);
+
+        if (results == null || results.isEmpty()) {
+            log.warn("No service cost data found for VM: {}, year: {}, month: {}", vmId, year, month);
+            return Collections.emptyList();
+        }
+
+        List<VmCostByServiceDto> serviceCosts = new ArrayList<>();
+
+        for (Object[] row : results) {
+            String serviceName = (String) row[0];
+            BigDecimal cost = (BigDecimal) row[1];
+
+            serviceCosts.add(VmCostByServiceDto.builder()
+                    .serviceName(serviceName)
+                    .totalCost(cost.setScale(2, RoundingMode.HALF_UP).doubleValue())
+                    .build());
+        }
+
+        return serviceCosts;
+    }
+
+    @Transactional(readOnly = true)
+    public VmCostHistoryDto getVmCostHistoryByDateRange(Long vmId, String startDate, String endDate) {
+
+        LocalDate start = parseDate(startDate);
+        LocalDate end = parseDate(endDate);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<MonthlyVmCost> allCosts = monthlyVmCostRepository.findByVmIdOrderByYearMonthDesc(vmId);
+
+        List<DailyCostDto> costs = new ArrayList<>();
+
+        LocalDate current = start;
+        while (!current.isAfter(end)) {
+            int year = current.getYear();
+            int month = current.getMonthValue();
+
+            Double totalCost = allCosts.stream()
+                    .filter(c -> c.getYear() == year && c.getMonth() == month)
+                    .map(MonthlyVmCost::getTotalCost)
+                    .map(BigDecimal::doubleValue)
+                    .findFirst()
+                    .orElse(0.0);
+
+            costs.add(DailyCostDto.builder()
+                    .date(current.toString())
+                    .totalCost(Math.round(totalCost * 100.0) / 100.0)
+                    .build());
+
+            current = current.plusMonths(1);
+        }
+
+        return VmCostHistoryDto.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .costs(costs)
+                .build();
+    }
+
+    private LocalDate parseDate(String dateStr) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        return LocalDate.parse(dateStr, formatter);
     }
 
 }

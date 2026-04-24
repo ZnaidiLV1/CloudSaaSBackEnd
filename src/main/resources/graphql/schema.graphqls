@@ -338,6 +338,42 @@ type VmMetricTotalResponse {
     dailyTotals: [DailyMetricTotal!]!
 }
 
+type SharedCostByServiceDto {
+    serviceName: String!
+    totalCost: Float!
+}
+
+type SharedCostsResponse {
+    year: Int!
+    month: Int!
+    sharedCostsByService: [SharedCostByServiceDto!]!
+}
+
+type VmCostDetailDto {
+    vmId: ID!
+    vmName: String!
+    directCost: Float!
+    reservationCost: Float!
+    sharedCost: Float!
+    totalCost: Float!
+}
+
+type VmCostByServiceDto {
+    serviceName: String!
+    totalCost: Float!
+}
+
+type DailyCostDto {
+    date: String!
+    totalCost: Float!
+}
+
+type VmCostHistoryDto {
+    vmId: ID!
+    vmName: String!
+    costs: [DailyCostDto!]!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -471,4 +507,27 @@ type Query {
         endDate: String!
         metricType: MetricType!
     ): VmMetricTotalResponse!
+
+    getSharedCostsByService(
+        year: Int!
+        month: Int!
+    ): SharedCostsResponse!
+
+    getVmCostDetail(
+        vmId: ID!
+        year: Int!
+        month: Int!
+    ): VmCostDetailDto!
+
+    getVmCostsByServiceForVm(
+        vmId: ID!
+        year: Int!
+        month: Int!
+    ): [VmCostByServiceDto!]!
+
+    getVmCostHistoryByDateRange(
+        vmId: ID!
+        startDate: String!
+        endDate: String!
+    ): VmCostHistoryDto!
 }

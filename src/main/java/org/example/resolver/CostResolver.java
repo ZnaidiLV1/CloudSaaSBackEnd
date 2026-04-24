@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
+import org.example.dto.invoiceVmCostDTOs.SharedCostsResponse;
 import org.example.service.MonthlyCostGetGrouped;
 import org.example.service.MonthlyCostSyncService;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -37,5 +38,11 @@ public class CostResolver {
     public List<CostByMeterDto> getTotalCostsByMeter(@Argument int year, @Argument int month) {
         log.info("GraphQL query: getTotalCostsByMeter for {}-{}", year, month);
         return monthlyCostGetGrouped.getTotalCostsByMeter(year, month);
+    }
+
+    @QueryMapping
+    public SharedCostsResponse getSharedCostsByService(@Argument int year, @Argument int month) {
+        log.info("GraphQL query: getSharedCostsByService for {}-{}", year, month);
+        return monthlyCostGetGrouped.getSharedCostsByService(year, month);
     }
 }

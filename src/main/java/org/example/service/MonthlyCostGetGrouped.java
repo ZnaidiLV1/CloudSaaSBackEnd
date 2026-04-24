@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
+import org.example.dto.invoiceVmCostDTOs.SharedCostByServiceDto;
+import org.example.dto.invoiceVmCostDTOs.SharedCostsResponse;
 import org.example.repository.MonthlyCostRepository;
 import org.example.repository.VmRepository;
 import org.springframework.stereotype.Service;
@@ -88,17 +90,14 @@ public class  MonthlyCostGetGrouped{
                         .meterName(meterName)
                         .totalCost(cost.setScale(2, RoundingMode.HALF_UP).doubleValue())
                         .build());
-                log.debug("Added Reservation: {} - ${}", meterName, cost);
             }
             else if (cost.compareTo(THRESHOLD) > 0) {
                 mainItems.add(CostByMeterDto.builder()
                         .meterName(meterName)
                         .totalCost(cost.setScale(2, RoundingMode.HALF_UP).doubleValue())
                         .build());
-                log.debug("Added {}: ${}", meterName, cost);
             } else {
                 otherTotal = otherTotal.add(cost);
-                log.debug("Added to Other: {} (${})", meterName, cost);
             }
         }
 
@@ -107,12 +106,44 @@ public class  MonthlyCostGetGrouped{
                     .meterName("Other")
                     .totalCost(otherTotal.setScale(2, RoundingMode.HALF_UP).doubleValue())
                     .build());
-            log.info("Created Other category with total: ${}", otherTotal);
         }
 
         mainItems.sort((a, b) -> Double.compare(b.getTotalCost(), a.getTotalCost()));
 
-        log.info("Returning {} cost categories for {}-{}", mainItems.size(), year, month);
         return mainItems;
+    }
+
+    @Transactional(readOnly = true)
+    public SharedCostsResponse getSharedCostsByService(int year, int month) {
+        log.info("Getting shared costs by service for {}-{}", year, month);
+
+        List<Object[]> results = monthlyCostRepository.findSharedCostsByService(year, month);
+
+        if (results == null || results.isEmpty()) {
+            log.warn("No shared cost data found for {}-{}", year, month);
+            return SharedCostsResponse.builder()
+                    .year(year)
+                    .month(month)
+                    .sharedCostsByService(Collections.emptyList())
+                    .build();
+        }
+
+        List<SharedCostByServiceDto> sharedCosts = new ArrayList<>();
+
+        for (Object[] row : results) {
+            String serviceName = (String) row[0];
+            BigDecimal cost = (BigDecimal) row[1];
+
+            sharedCosts.add(SharedCostByServiceDto.builder()
+                    .serviceName(serviceName)
+                    .totalCost(cost.setScale(2, RoundingMode.HALF_UP).doubleValue())
+                    .build());
+        }
+
+        return SharedCostsResponse.builder()
+                .year(year)
+                .month(month)
+                .sharedCostsByService(sharedCosts)
+                .build();
     }
 }

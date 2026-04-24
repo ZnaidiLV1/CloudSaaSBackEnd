@@ -29,4 +29,18 @@ public interface MonthlyCostRepository extends JpaRepository<MonthlyCost, Long> 
 
     List<MonthlyCost> findByMonthAndYear(int month, int year);
 
+    @Query("SELECT m.serviceName, SUM(m.cost) FROM MonthlyCost m " +
+            "WHERE m.year = :year AND m.month = :month " +
+            "AND m.isShared = true " +
+            "AND m.serviceName != 'Virtual Machines' " +
+            "GROUP BY m.serviceName " +
+            "ORDER BY SUM(m.cost) DESC")
+    List<Object[]> findSharedCostsByService(@Param("year") int year, @Param("month") int month);
+
+    @Query("SELECT m.serviceName, SUM(m.cost) FROM MonthlyCost m " +
+            "WHERE m.year = :year AND m.month = :month " +
+            "AND m.vmId = :vmId " +
+            "GROUP BY m.serviceName " +
+            "ORDER BY SUM(m.cost) DESC")
+    List<Object[]> findCostsByServiceForVm(@Param("year") int year, @Param("month") int month, @Param("vmId") Long vmId);
 }
