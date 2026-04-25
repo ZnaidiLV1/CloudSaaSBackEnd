@@ -65,4 +65,14 @@ public class MonthlyVmCostResolver {
         return monthlyVmCostService.getVmCostHistoryByDateRange(vmId, startDate, endDate);
     }
 
+    @QueryMapping
+    public MonthlyCostRangeResponseDto getMonthlyCostsByDateRange(
+            @Argument Long vmId,
+            @Argument String startDate,
+            @Argument String endDate
+    ) {
+        log.info("GraphQL Query: getMonthlyCostsByDateRange - vmId: {}, startDate: {}, endDate: {}", vmId, startDate, endDate);
+        return monthlyVmCostService.getMonthlyCostsByDateRange(vmId, startDate, endDate);
+    }
+
 }

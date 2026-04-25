@@ -374,6 +374,21 @@ type VmCostHistoryDto {
     costs: [DailyCostDto!]!
 }
 
+type VmMonthlyCostData {
+    vmId: ID!
+    vmName: String!
+    costs: [Float!]!
+}
+
+type MonthlyCostRangeResponse {
+    isAllVms: Boolean!
+    months: [String!]!
+    vmCosts: [VmMonthlyCostData!]
+    vmId: ID
+    vmName: String
+    costs: [Float!]
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -480,6 +495,8 @@ type Query {
 
     alertSummary(
         vmId: ID!
+        startDate: String!
+        endDate: String!
     ): AlertSummaryResponse!
 
     alertHeatmap(
@@ -530,4 +547,10 @@ type Query {
         startDate: String!
         endDate: String!
     ): VmCostHistoryDto!
+
+    getMonthlyCostsByDateRange(
+        vmId: ID!
+        startDate: String!
+        endDate: String!
+    ): MonthlyCostRangeResponse!
 }

@@ -52,4 +52,34 @@ public interface AzureAlertRepository extends JpaRepository<AzureAlert, Long> {
     List<Object[]> getAlertCountsByDate(@Param("vmId") Long vmId,
                                         @Param("startDate") LocalDateTime startDate,
                                         @Param("endDate") LocalDateTime endDate);
+
+    // New methods for date range filtering
+    @Query("SELECT COUNT(a) FROM AzureAlert a WHERE a.occurredAt BETWEEN :startDate AND :endDate")
+    Long countByOccurredAtBetween(@Param("startDate") LocalDateTime startDate,
+                                  @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT COUNT(a) FROM AzureAlert a WHERE a.monitorCondition = :condition AND a.occurredAt BETWEEN :startDate AND :endDate")
+    Long countByMonitorConditionAndOccurredAtBetween(@Param("condition") String condition,
+                                                     @Param("startDate") LocalDateTime startDate,
+                                                     @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT COUNT(a) FROM AzureAlert a WHERE a.vm.id = :vmId AND a.occurredAt BETWEEN :startDate AND :endDate")
+    Long countByVmIdAndOccurredAtBetween(@Param("vmId") Long vmId,
+                                         @Param("startDate") LocalDateTime startDate,
+                                         @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT COUNT(a) FROM AzureAlert a WHERE a.vm.id = :vmId AND a.monitorCondition = :condition AND a.occurredAt BETWEEN :startDate AND :endDate")
+    Long countByVmIdAndMonitorConditionAndOccurredAtBetween(@Param("vmId") Long vmId,
+                                                            @Param("condition") String condition,
+                                                            @Param("startDate") LocalDateTime startDate,
+                                                            @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT a.alertName, COUNT(a) FROM AzureAlert a WHERE a.vm.id = :vmId AND a.occurredAt BETWEEN :startDate AND :endDate GROUP BY a.alertName")
+    List<Object[]> countByVmIdGroupByAlertNameAndDateRange(@Param("vmId") Long vmId,
+                                                           @Param("startDate") LocalDateTime startDate,
+                                                           @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT a.alertName, COUNT(a) FROM AzureAlert a WHERE a.occurredAt BETWEEN :startDate AND :endDate GROUP BY a.alertName")
+    List<Object[]> countGroupByAlertNameAndDateRange(@Param("startDate") LocalDateTime startDate,
+                                                     @Param("endDate") LocalDateTime endDate);
 }

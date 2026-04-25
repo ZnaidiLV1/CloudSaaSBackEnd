@@ -128,7 +128,14 @@ public class AlertService {
                 .build();
     }
 
-    public AlertSummaryResponse getAlertSummary(Long vmId) {
+    public AlertSummaryResponse getAlertSummary(Long vmId, String startDateStr, String endDateStr) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        LocalDate startLocalDate = LocalDate.parse(startDateStr, formatter);
+        LocalDate endLocalDate = LocalDate.parse(endDateStr, formatter);
+
+        LocalDateTime startDateTime = startLocalDate.atStartOfDay();
+        LocalDateTime endDateTime = endLocalDate.atTime(LocalTime.MAX);
+
         String vmName;
         Long totalCount;
         Long firedCount;
@@ -137,11 +144,11 @@ public class AlertService {
 
         if (vmId == 0) {
             vmName = "All VMs";
-            totalCount = alertRepository.count();
-            firedCount = alertRepository.countByMonitorCondition("Fired");
-            resolvedCount = alertRepository.countByMonitorCondition("Resolved");
+            totalCount = alertRepository.countByOccurredAtBetween(startDateTime, endDateTime);
+            firedCount = alertRepository.countByMonitorConditionAndOccurredAtBetween("Fired", startDateTime, endDateTime);
+            resolvedCount = alertRepository.countByMonitorConditionAndOccurredAtBetween("Resolved", startDateTime, endDateTime);
 
-            List<Object[]> groupResults = alertRepository.countGroupByAlertName();
+            List<Object[]> groupResults = alertRepository.countGroupByAlertNameAndDateRange(startDateTime, endDateTime);
             alertGroups = groupResults.stream()
                     .map(result -> {
                         String alertName = (String) result[0];
@@ -158,11 +165,11 @@ public class AlertService {
             Vm vm = vmRepository.findById(vmId)
                     .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
             vmName = vm.getName();
-            totalCount = alertRepository.countByVmId(vmId);
-            firedCount = alertRepository.countByVmIdAndMonitorCondition(vmId, "Fired");
-            resolvedCount = alertRepository.countByVmIdAndMonitorCondition(vmId, "Resolved");
+            totalCount = alertRepository.countByVmIdAndOccurredAtBetween(vmId, startDateTime, endDateTime);
+            firedCount = alertRepository.countByVmIdAndMonitorConditionAndOccurredAtBetween(vmId, "Fired", startDateTime, endDateTime);
+            resolvedCount = alertRepository.countByVmIdAndMonitorConditionAndOccurredAtBetween(vmId, "Resolved", startDateTime, endDateTime);
 
-            List<Object[]> groupResults = alertRepository.countByVmIdGroupByAlertName(vmId);
+            List<Object[]> groupResults = alertRepository.countByVmIdGroupByAlertNameAndDateRange(vmId, startDateTime, endDateTime);
             alertGroups = groupResults.stream()
                     .map(result -> {
                         String alertName = (String) result[0];
@@ -186,6 +193,7 @@ public class AlertService {
                 .totalCount(totalCount)
                 .build();
     }
+
 
     public AlertHeatmapResponse getAlertHeatmap(Long vmId) {
         LocalDate endDate = LocalDate.now().minusDays(1);

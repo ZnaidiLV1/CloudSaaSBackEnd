@@ -28,12 +28,13 @@ public class AlertResolver {
 
     @QueryMapping
     public AlertSummaryResponse alertSummary(
-            @Argument Long vmId
+            @Argument Long vmId,
+            @Argument String startDate,
+            @Argument String endDate
     ) {
-        log.info("GraphQL: alertSummary called - vmId: {}", vmId);
-        return alertService.getAlertSummary(vmId);
+        log.info("GraphQL: alertSummary called - vmId: {}, startDate: {}, endDate: {}", vmId, startDate, endDate);
+        return alertService.getAlertSummary(vmId, startDate, endDate);
     }
-
     @QueryMapping
     public AlertHeatmapResponse alertHeatmap(
             @Argument Long vmId

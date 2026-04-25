@@ -302,6 +302,112 @@ public class MonthlyVmCostService {
     }
 
     @Transactional(readOnly = true)
+    public MonthlyCostRangeResponseDto getMonthlyCostsByDateRange(Long vmId, String startDate, String endDate) {
+        log.info("Getting monthly costs for vmId: {}, startDate: {}, endDate: {}", vmId, startDate, endDate);
+
+        LocalDate start = parseDate(startDate);
+        LocalDate end = parseDate(endDate);
+
+        if (start.isAfter(end)) {
+            LocalDate temp = start;
+            start = end;
+            end = temp;
+        }
+
+        List<String> monthsList = new ArrayList<>();
+        List<Integer> yearMonthList = new ArrayList<>();
+
+        LocalDate current = start;
+        while (!current.isAfter(end)) {
+            int year = current.getYear();
+            int month = current.getMonthValue();
+            monthsList.add(String.format("%d-%02d", year, month));
+            yearMonthList.add(year * 100 + month);
+            current = current.plusMonths(1);
+        }
+
+        if (vmId != null && vmId != 0) {
+            Optional<Vm> vmOpt = vmRepository.findById(vmId);
+            if (vmOpt.isEmpty()) {
+                throw new RuntimeException("VM not found with id: " + vmId);
+            }
+            Vm vm = vmOpt.get();
+
+            List<MonthlyVmCost> costs = monthlyVmCostRepository.findByYearMonthRange(
+                    yearMonthList.get(0),
+                    yearMonthList.get(yearMonthList.size() - 1)
+            );
+
+            costs = costs.stream()
+                    .filter(c -> c.getVm().getId().equals(vmId))
+                    .collect(Collectors.toList());
+
+            Map<Integer, BigDecimal> costMap = costs.stream()
+                    .collect(Collectors.toMap(
+                            c -> c.getYear() * 100 + c.getMonth(),
+                            MonthlyVmCost::getTotalCost,
+                            (a, b) -> a
+                    ));
+
+            List<Double> costValues = new ArrayList<>();
+            for (int ym : yearMonthList) {
+                BigDecimal cost = costMap.getOrDefault(ym, BigDecimal.ZERO);
+                costValues.add(cost.setScale(2, RoundingMode.HALF_UP).doubleValue());
+            }
+
+            return MonthlyCostRangeResponseDto.builder()
+                    .isAllVms(false)
+                    .vmId(vmId)
+                    .vmName(vm.getName())
+                    .months(monthsList)
+                    .costs(costValues)
+                    .build();
+
+        } else {
+            List<Vm> allVms = vmRepository.findAll();
+
+            List<MonthlyVmCost> allCosts = monthlyVmCostRepository.findByYearMonthRange(
+                    yearMonthList.get(0),
+                    yearMonthList.get(yearMonthList.size() - 1)
+            );
+
+            Map<Long, Map<Integer, BigDecimal>> costsByVmAndMonth = new HashMap<>();
+
+            for (MonthlyVmCost cost : allCosts) {
+                Long id = cost.getVm().getId();
+                int ym = cost.getYear() * 100 + cost.getMonth();
+
+                costsByVmAndMonth.computeIfAbsent(id, k -> new HashMap<>())
+                        .put(ym, cost.getTotalCost());
+            }
+
+            List<VmMonthlyCostData> vmCostsList = new ArrayList<>();
+
+            for (Vm vm : allVms) {
+                Map<Integer, BigDecimal> vmCostMap = costsByVmAndMonth.getOrDefault(vm.getId(), new HashMap<>());
+
+                List<Double> costValues = new ArrayList<>();
+                for (int ym : yearMonthList) {
+                    BigDecimal cost = vmCostMap.getOrDefault(ym, BigDecimal.ZERO);
+                    costValues.add(cost.setScale(2, RoundingMode.HALF_UP).doubleValue());
+                }
+
+                vmCostsList.add(VmMonthlyCostData.builder()
+                        .vmId(vm.getId())
+                        .vmName(vm.getName())
+                        .costs(costValues)
+                        .build());
+            }
+
+            return MonthlyCostRangeResponseDto.builder()
+                    .isAllVms(true)
+                    .months(monthsList)
+                    .vmCosts(vmCostsList)
+                    .build();
+        }
+    }
+
+    @Transactional(readOnly = true)
     public VmCostHistoryDto getVmCostHistoryByDateRange(Long vmId, String startDate, String endDate) {
 
         LocalDate start = parseDate(startDate);
