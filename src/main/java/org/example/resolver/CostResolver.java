@@ -2,6 +2,7 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.costDTOs.ServiceCostsResponse;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
 import org.example.dto.invoiceVmCostDTOs.SharedCostsResponse;
@@ -44,5 +45,15 @@ public class CostResolver {
     public SharedCostsResponse getSharedCostsByService(@Argument int year, @Argument int month) {
         log.info("GraphQL query: getSharedCostsByService for {}-{}", year, month);
         return monthlyCostGetGrouped.getSharedCostsByService(year, month);
+    }
+
+    @QueryMapping
+    public ServiceCostsResponse getCostsByServiceName(
+            @Argument String startDate,
+            @Argument String endDate,
+            @Argument String serviceName
+    ) {
+        log.info("GraphQL query: getCostsByServiceName - startDate: {}, endDate: {}, serviceName: {}", startDate, endDate, serviceName);
+        return monthlyCostGetGrouped.getCostsByServiceName(startDate, endDate, serviceName);
     }
 }

@@ -3,6 +3,8 @@ package org.example.service;
 import com.azure.resourcemanager.costmanagement.CostManagementManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.costDTOs.ServiceCostData;
+import org.example.dto.costDTOs.ServiceCostsResponse;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
 import org.example.dto.invoiceVmCostDTOs.SharedCostByServiceDto;
@@ -14,9 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -145,5 +147,103 @@ public class  MonthlyCostGetGrouped{
                 .month(month)
                 .sharedCostsByService(sharedCosts)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ServiceCostsResponse getCostsByServiceName(String startDate, String endDate, String serviceName) {
+        LocalDate start = parseDate(startDate);
+        LocalDate end = parseDate(endDate);
+
+        if (start.isAfter(end)) {
+            LocalDate temp = start;
+            start = end;
+            end = temp;
+        }
+
+        List<String> monthsList = new ArrayList<>();
+        List<Integer> yearMonthList = new ArrayList<>();
+
+        LocalDate current = start;
+        while (!current.isAfter(end)) {
+            int year = current.getYear();
+            int month = current.getMonthValue();
+            monthsList.add(String.format("%d-%02d", year, month));
+            yearMonthList.add(year * 100 + month);
+            current = current.plusMonths(1);
+        }
+
+        List<String> allServiceNames = monthlyCostRepository.findAllDistinctServiceNames();
+
+        List<ServiceCostData> servicesCosts = new ArrayList<>();
+
+        if (serviceName == null || serviceName.equalsIgnoreCase("ALL")) {
+            Map<String, List<Double>> costsByService = new HashMap<>();
+
+            for (String svc : allServiceNames) {
+                costsByService.put(svc, new ArrayList<>());
+            }
+
+            for (int ym : yearMonthList) {
+                int year = ym / 100;
+                int month = ym % 100;
+
+                List<Object[]> results = monthlyCostRepository.sumCostsByServiceForMonth(year, month);
+                Map<String, Double> monthCosts = new HashMap<>();
+
+                for (Object[] row : results) {
+                    String svc = (String) row[0];
+                    BigDecimal cost = (BigDecimal) row[1];
+                    monthCosts.put(svc, cost.setScale(2, RoundingMode.HALF_UP).doubleValue());
+                }
+
+                for (String svc : allServiceNames) {
+                    double cost = monthCosts.getOrDefault(svc, 0.0);
+                    costsByService.get(svc).add(cost);
+                }
+            }
+
+            for (String svc : allServiceNames) {
+                servicesCosts.add(ServiceCostData.builder()
+                        .serviceName(svc)
+                        .costs(costsByService.get(svc))
+                        .build());
+            }
+
+        } else {
+            for (int ym : yearMonthList) {
+                int year = ym / 100;
+                int month = ym % 100;
+
+                BigDecimal cost = monthlyCostRepository.sumCostsByServiceNameForMonth(year, month, serviceName);
+                double costValue = cost != null ? cost.setScale(2, RoundingMode.HALF_UP).doubleValue() : 0.0;
+
+                ServiceCostData existing = servicesCosts.stream()
+                        .filter(s -> s.getServiceName().equals(serviceName))
+                        .findFirst()
+                        .orElse(null);
+
+                if (existing == null) {
+                    List<Double> costs = new ArrayList<>();
+                    costs.add(costValue);
+                    servicesCosts.add(ServiceCostData.builder()
+                            .serviceName(serviceName)
+                            .costs(costs)
+                            .build());
+                } else {
+                    existing.getCosts().add(costValue);
+                }
+            }
+        }
+
+        return ServiceCostsResponse.builder()
+                .serviceNames(allServiceNames)
+                .months(monthsList)
+                .services(servicesCosts)
+                .build();
+    }
+
+    private LocalDate parseDate(String dateStr) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        return LocalDate.parse(dateStr, formatter);
     }
 }

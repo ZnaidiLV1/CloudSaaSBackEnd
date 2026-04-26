@@ -24,9 +24,10 @@ public class SchedulerService {
     public String updateSchedule(String task, String cronExpression) {
         log.info("Updating schedule for task: {} with cron: {}", task, cronExpression);
 
-        schedulerConfig.updateCronAndSave(task.toLowerCase(), cronExpression);
+        schedulerConfig.updateCronAndSave(task, cronExpression);
 
-        switch (task.toLowerCase()) {
+        String taskLower = task.toLowerCase();
+        switch (taskLower) {
             case "performance":
                 performanceScheduler.updateSchedule(cronExpression);
                 break;

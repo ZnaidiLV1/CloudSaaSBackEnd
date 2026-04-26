@@ -389,6 +389,17 @@ type MonthlyCostRangeResponse {
     costs: [Float!]
 }
 
+type ServiceCostData {
+    serviceName: String!
+    costs: [Float!]!
+}
+
+type ServiceCostsResponse {
+    serviceNames: [String!]!
+    months: [String!]!
+    services: [ServiceCostData!]!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -553,4 +564,6 @@ type Query {
         startDate: String!
         endDate: String!
     ): MonthlyCostRangeResponse!
+    
+    getCostsByServiceName(startDate: String!, endDate: String!, serviceName: String!): ServiceCostsResponse!
 }

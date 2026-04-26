@@ -50,6 +50,7 @@ public class MonthlyCostScheduler {
     }
 
     public void updateSchedule(String newCron) {
+        schedulerConfig.updateCronAndSave("monthlyCost", newCron);
         scheduleTask(newCron);
     }
 }
