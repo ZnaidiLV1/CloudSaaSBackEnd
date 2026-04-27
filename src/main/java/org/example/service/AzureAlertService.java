@@ -20,11 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -104,7 +102,7 @@ public class AzureAlertService {
 
                 if (values != null && values.isArray()) {
                     for (JsonNode alertNode : values) {
-                        AzureAlert alert = parseAlertNode(alertNode, vm, vmResourceId, vmName);
+                        AzureAlert alert = parseAlertNode(alertNode, vm, vmResourceId, vmName, token);
                         if (alert != null) {
                             result.add(alert);
                         }
@@ -130,12 +128,11 @@ public class AzureAlertService {
         return result;
     }
 
-    private AzureAlert parseAlertNode(JsonNode alertNode, Vm vm, String vmResourceId, String vmName) {
+    private AzureAlert parseAlertNode(JsonNode alertNode, Vm vm, String vmResourceId, String vmName, String token) {
         try {
             JsonNode ess = alertNode.path("properties").path("essentials");
 
             String monitorCondition = ess.path("monitorCondition").asText(null);
-
             String targetResource = ess.path("targetResource").asText(null);
             String targetName = ess.path("targetResourceName").asText(null);
             String startDateTimeRaw = ess.path("startDateTime").asText(null);
@@ -150,72 +147,88 @@ public class AzureAlertService {
                 alertId = parts[parts.length - 1];
             }
 
+            // LOG THE FULL RAW JSON FOR DEBUGGING (only for first few alerts)
+            if (alertId != null && alertId.matches(".*[fF].*")) {
+                log.info("=== RAW ALERT JSON for {} ===", alertId);
+                log.info(alertNode.toPrettyString());
+            }
+
             if (startDateTimeRaw == null || startDateTimeRaw.isBlank()) {
+                log.warn("Alert {} - no startDateTime, skipping", alertId);
                 return null;
             }
 
-            OffsetDateTime occurredAt = OffsetDateTime.parse(startDateTimeRaw)
+            OffsetDateTime startDateTime = OffsetDateTime.parse(startDateTimeRaw)
                     .withOffsetSameInstant(ZoneOffset.UTC);
 
+            LocalDateTime occurredAt = startDateTime.toLocalDateTime();
+            LocalDateTime firedAt = startDateTime.toLocalDateTime();  // ALWAYS set from startDateTime
+
+            // IMPORTANT: Use monitorConditionResolvedDateTime, NOT endDateTime!
+            String resolvedDateTimeRaw = null;
+            LocalDateTime resolvedAt = null;
+
+            // Check for monitorConditionResolvedDateTime (CORRECT FIELD)
+            if (ess.has("monitorConditionResolvedDateTime") && !ess.path("monitorConditionResolvedDateTime").isNull()) {
+                resolvedDateTimeRaw = ess.path("monitorConditionResolvedDateTime").asText();
+                if (resolvedDateTimeRaw != null && !resolvedDateTimeRaw.isBlank()) {
+                    resolvedAt = OffsetDateTime.parse(resolvedDateTimeRaw)
+                            .withOffsetSameInstant(ZoneOffset.UTC)
+                            .toLocalDateTime();
+                    log.info("Alert {} [{}] - Found monitorConditionResolvedDateTime: {}", alertId, monitorCondition, resolvedAt);
+                }
+            } else {
+                log.info("Alert {} [{}] - No monitorConditionResolvedDateTime field in response", alertId, monitorCondition);
+            }
+
+            log.info("Alert {} [{}] - TIMESTAMPS: occurredAt={}, firedAt={}, resolvedAt={}",
+                    alertId, monitorCondition, occurredAt, firedAt, resolvedAt);
+
+            // VM MATCHING
             boolean matchesVm = false;
-
             if (vmResourceId != null && targetResource != null
-                    && targetResource.toLowerCase().equals(vmResourceId)) {
-                matchesVm = true;
-            }
-
+                    && targetResource.toLowerCase().equals(vmResourceId)) matchesVm = true;
             if (!matchesVm && vmResourceId != null && targetResource != null
-                    && targetResource.toLowerCase().contains(vmResourceId)) {
-                matchesVm = true;
-            }
-
-            if (!matchesVm && targetName != null
-                    && targetName.toLowerCase().equals(vmName)) {
-                matchesVm = true;
-            }
-
-            if (!matchesVm && targetName != null
-                    && targetName.toLowerCase().contains(vmName)) {
-                matchesVm = true;
-            }
-
+                    && targetResource.toLowerCase().contains(vmResourceId)) matchesVm = true;
+            if (!matchesVm && targetName != null && targetName.toLowerCase().equals(vmName)) matchesVm = true;
+            if (!matchesVm && targetName != null && targetName.toLowerCase().contains(vmName)) matchesVm = true;
             if (!matchesVm) {
+                log.debug("Alert {} - VM match failed", alertId);
                 return null;
             }
 
+            // METRIC INFO
             Double metricValue = null;
             String metricName = null;
             String metricNamespace = null;
             String operator = null;
             Double threshold = null;
 
-            JsonNode conditions = alertNode.path("properties").path("context").path("condition");
-            if (conditions != null && !conditions.isMissingNode()) {
-                if (conditions.has("metricValue")) {
-                    metricValue = conditions.path("metricValue").asDouble();
-                }
-                if (conditions.has("metricName")) {
-                    metricName = conditions.path("metricName").asText();
-                }
-                if (conditions.has("metricNamespace")) {
-                    metricNamespace = conditions.path("metricNamespace").asText();
-                }
-                if (conditions.has("operator")) {
-                    operator = conditions.path("operator").asText();
-                }
-                if (conditions.has("threshold")) {
-                    threshold = conditions.path("threshold").asDouble();
+            // Try to get metricValue from context.condition.allOf
+            JsonNode context = alertNode.path("properties").path("context");
+            if (!context.isMissingNode()) {
+                JsonNode condition = context.path("condition");
+                JsonNode allOf = condition.path("allOf");
+                if (allOf.isArray() && allOf.size() > 0) {
+                    JsonNode first = allOf.get(0);
+                    if (first.has("metricValue")) metricValue = first.path("metricValue").asDouble();
+                    if (first.has("metricName")) metricName = first.path("metricName").asText();
+                    if (first.has("metricNamespace")) metricNamespace = first.path("metricNamespace").asText();
+                    if (first.has("operator")) operator = first.path("operator").asText();
+                    if (first.has("threshold")) {
+                        JsonNode thresholdNode = first.get("threshold");
+                        if (thresholdNode.isNumber()) threshold = thresholdNode.asDouble();
+                        else if (thresholdNode.isTextual()) {
+                            try { threshold = Double.parseDouble(thresholdNode.asText()); } catch (Exception e) {}
+                        }
+                    }
+                    log.info("Alert {} - Found metric in context: metricName={}, metricValue={}", alertId, metricName, metricValue);
                 }
             }
 
+            // Fallback to rule cache for metric metadata
             if (metricName == null && alertRule != null && alertRule.contains("/metricAlerts/")) {
                 try {
-                    String token = Objects.requireNonNull(tokenCredential
-                                    .getToken(new TokenRequestContext()
-                                            .addScopes("https://management.azure.com/.default"))
-                                    .block())
-                            .getToken();
-
                     String normalizedRuleId = alertRule.replace("/microsoft.insights/", "/Microsoft.Insights/");
                     MetricAlertRule rule = ruleCache.computeIfAbsent(normalizedRuleId, key -> {
                         try {
@@ -227,34 +240,29 @@ public class AzureAlertService {
                     });
 
                     if (rule != null) {
-                        metricName = rule.getMetricName();
-                        metricNamespace = rule.getMetricNamespace();
-                        operator = rule.getOperator();
-                        threshold = rule.getThreshold();
+                        if (metricName == null) metricName = rule.getMetricName();
+                        if (metricNamespace == null) metricNamespace = rule.getMetricNamespace();
+                        if (operator == null) operator = rule.getOperator();
+                        if (threshold == null) threshold = rule.getThreshold();
+                        log.info("Alert {} - Rule cache: metricName={}, threshold={}", alertId, metricName, threshold);
                     }
                 } catch (Exception e) {
                     log.warn("Could not fetch metric rule details: {}", e.getMessage());
                 }
             }
 
+            // Clean alert name
             String alertName = ess.path("alertRule").asText("Unknown Alert");
             if (alertName.contains("/")) {
                 String[] parts = alertName.split("/");
                 alertName = parts[parts.length - 1];
             }
-
-            LocalDateTime resolvedTime = null;
-            String endDateTimeRaw = ess.path("endDateTime").asText(null);
-            if (endDateTimeRaw != null && !endDateTimeRaw.isBlank()) {
-                resolvedTime = OffsetDateTime.parse(endDateTimeRaw)
-                        .withOffsetSameInstant(ZoneOffset.UTC)
-                        .toLocalDateTime();
+            if (alertName != null && alertName.contains("] ")) {
+                alertName = alertName.substring(alertName.indexOf("] ") + 2);
             }
 
-            LocalDateTime firedTime = null;
-            if ("Fired".equals(monitorCondition)) {
-                firedTime = occurredAt.toLocalDateTime();
-            }
+            log.info("Alert {} [{}] - FINAL: metricName={}, metricValue={}, operator={}, threshold={}, firedAt={}, resolvedAt={}",
+                    alertId, monitorCondition, metricName, metricValue, operator, threshold, firedAt, resolvedAt);
 
             return AzureAlert.builder()
                     .vm(vm)
@@ -262,10 +270,10 @@ public class AzureAlertService {
                     .alertName(alertName)
                     .severity(severity)
                     .description(description)
-                    .occurredAt(occurredAt.toLocalDateTime())
+                    .occurredAt(occurredAt)
                     .monitorCondition(monitorCondition)
-                    .resolvedAt(resolvedTime)
-                    .firedAt(firedTime)
+                    .resolvedAt(resolvedAt)           // From monitorConditionResolvedDateTime
+                    .firedAt(firedAt)                 // ALWAYS from startDateTime
                     .alertRule(alertRule)
                     .metricName(metricName)
                     .metricNamespace(metricNamespace)
@@ -275,7 +283,7 @@ public class AzureAlertService {
                     .build();
 
         } catch (Exception e) {
-            log.warn("Skipping malformed alert: {}", e.getMessage());
+            log.warn("Skipping malformed alert: {}", e.getMessage(), e);
             return null;
         }
     }

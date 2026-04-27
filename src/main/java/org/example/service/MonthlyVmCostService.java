@@ -121,6 +121,7 @@ public class MonthlyVmCostService {
                 costsToSave.size(), month, year);
         
     }
+
     @Transactional(readOnly = true)
     public VmCostHistoryResponse getVmCostHistory(int index) {
         int monthsPerPage = 6;
@@ -157,7 +158,9 @@ public class MonthlyVmCostService {
 
         List<Integer> windowYearMonths = allYearMonths.subList(startIndex, endIndex);
 
-        
+        // ADD THIS LINE - Reverse the order so oldest first
+        Collections.reverse(windowYearMonths);
+
         List<String> sharedMonths = windowYearMonths.stream()
                 .map(yearMonth -> {
                     int year = yearMonth / 100;
@@ -166,8 +169,8 @@ public class MonthlyVmCostService {
                 })
                 .collect(Collectors.toList());
 
-        int minYearMonth = windowYearMonths.get(windowYearMonths.size() - 1);
-        int maxYearMonth = windowYearMonths.get(0);
+        int minYearMonth = windowYearMonths.get(0);
+        int maxYearMonth = windowYearMonths.get(windowYearMonths.size() - 1);
 
         List<MonthlyVmCost> costsInWindow = monthlyVmCostRepository.findByYearMonthRange(minYearMonth, maxYearMonth);
 
@@ -213,7 +216,7 @@ public class MonthlyVmCostService {
                 .index(index)
                 .hasNext(hasNext)
                 .hasPrevious(hasPrevious)
-                .months(sharedMonths)  
+                .months(sharedMonths)
                 .build();
     }
 

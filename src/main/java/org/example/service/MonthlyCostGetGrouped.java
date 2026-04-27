@@ -172,8 +172,7 @@ public class  MonthlyCostGetGrouped{
             current = current.plusMonths(1);
         }
 
-        List<String> allServiceNames = monthlyCostRepository.findAllDistinctServiceNames();
-
+        List<String> allServiceNames = monthlyCostRepository.findAllDistinctServiceNamesIncludingVirtualMachines();
         List<ServiceCostData> servicesCosts = new ArrayList<>();
 
         if (serviceName == null || serviceName.equalsIgnoreCase("ALL")) {
@@ -202,12 +201,24 @@ public class  MonthlyCostGetGrouped{
                 }
             }
 
+            List<String> filteredServiceNames = new ArrayList<>();
             for (String svc : allServiceNames) {
-                servicesCosts.add(ServiceCostData.builder()
-                        .serviceName(svc)
-                        .costs(costsByService.get(svc))
-                        .build());
+                List<Double> costs = costsByService.get(svc);
+                boolean hasNonZero = costs.stream().anyMatch(c -> c > 0);
+                if (hasNonZero) {
+                    filteredServiceNames.add(svc);
+                    servicesCosts.add(ServiceCostData.builder()
+                            .serviceName(svc)
+                            .costs(costs)
+                            .build());
+                }
             }
+
+            return ServiceCostsResponse.builder()
+                    .serviceNames(filteredServiceNames)
+                    .months(monthsList)
+                    .services(servicesCosts)
+                    .build();
 
         } else {
             for (int ym : yearMonthList) {
@@ -233,13 +244,13 @@ public class  MonthlyCostGetGrouped{
                     existing.getCosts().add(costValue);
                 }
             }
-        }
 
-        return ServiceCostsResponse.builder()
-                .serviceNames(allServiceNames)
-                .months(monthsList)
-                .services(servicesCosts)
-                .build();
+            return ServiceCostsResponse.builder()
+                    .serviceNames(allServiceNames)
+                    .months(monthsList)
+                    .services(servicesCosts)
+                    .build();
+        }
     }
 
     private LocalDate parseDate(String dateStr) {

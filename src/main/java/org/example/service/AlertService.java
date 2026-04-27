@@ -99,18 +99,37 @@ public class AlertService {
             totalCount = Math.toIntExact(alertRepository.countByVmId(vmId));
         }
 
-        List<org.example.dto.AlertsDto.AlertDto> alerts = alertsPage.getContent().stream()
+        List<AlertDto> alerts = alertsPage.getContent().stream()
                 .map(alert -> {
                     String cleanAlertName = alert.getAlertName();
                     if (cleanAlertName != null && cleanAlertName.contains("] ")) {
                         cleanAlertName = cleanAlertName.substring(cleanAlertName.indexOf("] ") + 2);
                     }
-                    return org.example.dto.AlertsDto.AlertDto.builder()
+
+                    Double metricValue = alert.getMetricValue() != null ? alert.getMetricValue() : 0.0;
+
+                    String resolvedAtStr = alert.getResolvedAt() != null ? alert.getResolvedAt().toString() : null;
+
+                    String duration = null;
+                    if (alert.getFiredAt() != null && alert.getResolvedAt() != null) {
+                        long seconds = java.time.Duration.between(alert.getFiredAt(), alert.getResolvedAt()).getSeconds();
+                        duration = seconds + "";
+                    } else if (alert.getFiredAt() != null && "Fired".equals(alert.getMonitorCondition())) {
+                        long seconds = java.time.Duration.between(alert.getFiredAt(), java.time.LocalDateTime.now()).getSeconds();
+                        duration = seconds + "";
+                    } else {
+                        duration = "0";
+                    }
+
+                    return AlertDto.builder()
                             .alertName(cleanAlertName)
-                            .occurredAt(alert.getOccurredAt())
+                            .occurredAt(alert.getOccurredAt().toString())
                             .monitorCondition(alert.getMonitorCondition())
                             .description(alert.getDescription())
                             .vmName(alert.getVm().getName())
+                            .metricValue(metricValue)
+                            .resolvedAt(resolvedAtStr)
+                            .duration(duration)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -194,7 +213,6 @@ public class AlertService {
                 .build();
     }
 
-
     public AlertHeatmapResponse getAlertHeatmap(Long vmId) {
         LocalDate endDate = LocalDate.now().minusDays(1);
         LocalDate startDate = endDate.minusDays(27);
@@ -251,47 +269,45 @@ public class AlertService {
             AzureAlert existing = existingOpt.get();
             boolean updated = false;
 
+            // When RESOLVED comes in, update resolvedAt but KEEP existing firedAt
             if ("Resolved".equals(newAlert.getMonitorCondition()) && existing.getResolvedAt() == null) {
-                existing.setResolvedAt(newAlert.getOccurredAt());
+                existing.setResolvedAt(newAlert.getResolvedAt());
                 existing.setMonitorCondition("Resolved");
+
+                // IMPORTANT: DO NOT overwrite firedAt! Keep the original
+                // existing.setFiredAt(...) - DO NOT DO THIS!
+
                 if (newAlert.getMetricValue() != null) {
                     existing.setMetricValue(newAlert.getMetricValue());
                 }
 
-                if (existing.getFiredAt() != null) {
-                    long duration = ChronoUnit.SECONDS.between(existing.getFiredAt(), newAlert.getOccurredAt());
+                if (existing.getFiredAt() != null && existing.getResolvedAt() != null) {
+                    long duration = ChronoUnit.SECONDS.between(existing.getFiredAt(), existing.getResolvedAt());
                     existing.setDurationSeconds(duration);
-                    log.info("Calculated duration: {} seconds for alert {}", duration, newAlert.getAzureAlertId());
+                    log.info("Alert {} - Calculated duration: {} seconds", newAlert.getAzureAlertId(), duration);
                 }
                 updated = true;
-                log.info("UPDATED alert {} from FIRED to RESOLVED", newAlert.getAzureAlertId());
+                log.info("UPDATED alert {} from FIRED to RESOLVED - firedAt={}, resolvedAt={}",
+                        newAlert.getAzureAlertId(), existing.getFiredAt(), existing.getResolvedAt());
             }
 
-            if ("Fired".equals(newAlert.getMonitorCondition()) && existing.getFiredAt() == null) {
-                existing.setFiredAt(newAlert.getOccurredAt());
+            // When FIRED comes in and no firedAt exists (orphan resolved case)
+            else if ("Fired".equals(newAlert.getMonitorCondition()) && existing.getFiredAt() == null) {
+                existing.setFiredAt(newAlert.getFiredAt());
                 existing.setMonitorCondition("Fired");
-                if (newAlert.getMetricName() != null) existing.setMetricName(newAlert.getMetricName());
-                if (newAlert.getMetricNamespace() != null) existing.setMetricNamespace(newAlert.getMetricNamespace());
-                if (newAlert.getMetricValue() != null) existing.setMetricValue(newAlert.getMetricValue());
-                if (newAlert.getOperator() != null) existing.setOperator(newAlert.getOperator());
-                if (newAlert.getThreshold() != null) existing.setThreshold(newAlert.getThreshold());
                 updated = true;
-                log.info("UPDATED alert {} with FIRED details", newAlert.getAzureAlertId());
+                log.info("UPDATED alert {} - Setting missing firedAt: {}", newAlert.getAzureAlertId(), newAlert.getFiredAt());
             }
 
             if (updated) {
                 alertRepository.save(existing);
-            } else {
-                log.debug("Alert {} already has state {}, skipping", newAlert.getAzureAlertId(), existing.getMonitorCondition());
             }
         } else {
-            if ("Fired".equals(newAlert.getMonitorCondition())) {
-                newAlert.setFiredAt(newAlert.getOccurredAt());
-                log.info("NEW FIRED alert {} for VM {}", newAlert.getAzureAlertId(), newAlert.getVm().getName());
-            } else {
-                log.info("NEW RESOLVED alert {} for VM {} (no FIRED found)", newAlert.getAzureAlertId(), newAlert.getVm().getName());
-            }
+            // NEW alert - firedAt already set in parseAlertNode
             alertRepository.save(newAlert);
+            log.info("NEW {} alert {} - firedAt={}, resolvedAt={}",
+                    newAlert.getMonitorCondition(), newAlert.getAzureAlertId(),
+                    newAlert.getFiredAt(), newAlert.getResolvedAt());
         }
     }
 }

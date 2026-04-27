@@ -50,13 +50,17 @@ public interface MonthlyCostRepository extends JpaRepository<MonthlyCost, Long> 
     @Query("SELECT m.serviceName, SUM(m.cost) FROM MonthlyCost m " +
             "WHERE m.year = :year AND m.month = :month " +
             "AND m.meterName NOT LIKE '%[RESERVATION]%' " +
-            "AND m.serviceName != 'Virtual Machines' " +
+            "AND (m.serviceName != 'Virtual Machines' OR (m.serviceName = 'Virtual Machines' AND m.meterName NOT LIKE '%RESERVATION%')) " +
             "GROUP BY m.serviceName")
     List<Object[]> sumCostsByServiceForMonth(@Param("year") int year, @Param("month") int month);
 
     @Query("SELECT SUM(m.cost) FROM MonthlyCost m " +
             "WHERE m.year = :year AND m.month = :month " +
             "AND m.serviceName = :serviceName " +
-            "AND m.meterName NOT LIKE '%[RESERVATION]%'")
+            "AND m.meterName NOT LIKE '%[RESERVATION]%' " +
+            "AND (:serviceName != 'Virtual Machines' OR m.meterName NOT LIKE '%RESERVATION%')")
     BigDecimal sumCostsByServiceNameForMonth(@Param("year") int year, @Param("month") int month, @Param("serviceName") String serviceName);
+
+    @Query("SELECT DISTINCT m.serviceName FROM MonthlyCost m ORDER BY m.serviceName")
+    List<String> findAllDistinctServiceNamesIncludingVirtualMachines();
 }
