@@ -403,6 +403,66 @@ type ServiceCostsResponse {
     services: [ServiceCostData!]!
 }
 
+type BackupJobHistory {
+    id: ID!
+    jobId: String!
+    jobName: String
+    operation: String
+    status: String
+    startTime: String
+    endTime: String
+    duration: String
+    isUserTriggered: Boolean
+    errorCode: String
+    errorMessage: String
+    syncedAt: String
+}
+
+type ProtectedItem {
+    id: ID!
+    dataSourceName: String
+    dataSourceType: String
+    friendlyName: String
+    policyName: String
+    protectionStatus: String
+    isActive: Boolean
+    vmName: String
+    backupJobs: [BackupJobHistory!]!
+}
+
+type BackupVault {
+    id: ID!
+    vaultName: String!
+    resourceGroup: String
+    location: String
+    storageType: String
+    tags: String
+    protectedItems: [ProtectedItem!]!
+}
+
+type BackupRecord {
+    date: String
+    status: String
+    duration: String
+    startTime: String
+}
+
+type DiskBackupHistory {
+    diskName: String
+    protectionStatus: String
+    vaultName: String
+    dataSourceType: String
+    backupHistory: [BackupRecord!]!
+}
+
+type VmBackupHistoryResponse {
+    vmId: ID!
+    vmName: String!
+    startDate: String!
+    endDate: String!
+    disks: [DiskBackupHistory!]!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -445,6 +505,11 @@ type Mutation {
 
     # update domain name for vm
     updateVmDomainName(vmId: ID!, domainName: String!): String!
+
+    # Backup Mutation
+    syncBackupData: String!
+
+    syncBackupHistoryLast30Days: String!
 }
 
 #  QUERIES 
@@ -569,4 +634,9 @@ type Query {
     ): MonthlyCostRangeResponse!
 
     getCostsByServiceName(startDate: String!, endDate: String!, serviceName: String!): ServiceCostsResponse!
+
+    getAllBackupVaults: [BackupVault!]!
+    getBackupVaultByName(vaultName: String!): BackupVault
+    getProtectedItemsByStatus(protectionStatus: String!): [ProtectedItem!]!
+    getVmBackupHistoryByDateRange(vmId: ID!, startDate: String!, endDate: String!): VmBackupHistoryResponse!
 }

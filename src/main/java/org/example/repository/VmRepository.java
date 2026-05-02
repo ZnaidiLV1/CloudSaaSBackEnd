@@ -16,6 +16,8 @@ public interface VmRepository extends JpaRepository<Vm, Long> {
 
     Optional<Vm> findByAzureVmId(String azureVmId);
 
+    Optional<Vm> findByName(String name);
+
     @Query("SELECT DISTINCT v FROM Vm v JOIN v.tags t " +
             "WHERE t.key = 'Product' AND t.value = :product")
     List<Vm> findByProduct(@Param("product") String product);

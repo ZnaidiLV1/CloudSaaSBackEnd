@@ -12,6 +12,7 @@ import com.azure.resourcemanager.costmanagement.CostManagementManager;
 import com.azure.monitor.query.MetricsQueryClient;
 import com.azure.monitor.query.MetricsQueryClientBuilder;
 
+import com.azure.resourcemanager.dataprotection.DataProtectionManager;
 import com.azure.resourcemanager.reservations.ReservationsManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -92,5 +93,12 @@ public class AzureConfig {
     @Bean
     public ReservationsManager reservationsManager(ClientSecretCredential credential, AzureProfile azureProfile) {
         return ReservationsManager.authenticate(credential, azureProfile);
+    }
+
+    @Bean
+    public DataProtectionManager dataProtectionManager(
+            ClientSecretCredential credential,
+            AzureProfile profile) {
+        return DataProtectionManager.authenticate(credential, profile);
     }
 }

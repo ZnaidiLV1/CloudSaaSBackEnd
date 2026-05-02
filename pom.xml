@@ -181,6 +181,13 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- Azure Data Protection (Backup Vault) -->
+        <dependency>
+            <groupId>com.azure.resourcemanager</groupId>
+            <artifactId>azure-resourcemanager-dataprotection</artifactId>
+            <version>1.0.0-beta.4</version>
+        </dependency>
+
     </dependencies>
 
     <build>
