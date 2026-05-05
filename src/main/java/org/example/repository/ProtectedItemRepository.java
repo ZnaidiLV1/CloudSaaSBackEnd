@@ -25,4 +25,5 @@ public interface ProtectedItemRepository extends JpaRepository<ProtectedItem, Lo
     @Modifying
     @Query("UPDATE ProtectedItem p SET p.isActive = false, p.removedAt = CURRENT_TIMESTAMP WHERE p.backupVault.id = :vaultId AND p.isActive = true")
     void deactivateAllByVaultId(@Param("vaultId") Long vaultId);
+
 }

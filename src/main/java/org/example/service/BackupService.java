@@ -9,6 +9,8 @@ import org.example.dto.BackupDTOs.BackupRecord;
 import org.example.dto.BackupDTOs.DiskBackupHistory;
 import org.example.dto.BackupDTOs.DiskBackupInfo;
 import org.example.dto.BackupDTOs.VmBackupHistoryResponse;
+import org.example.dto.backupDTOS.BackupVaultWithItemsDTO;
+import org.example.dto.backupDTOS.ProtectedItemInfoDTO;
 import org.example.entity.*;
 import org.example.entity.BackupVault;
 import org.example.repository.*;
@@ -18,6 +20,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,14 +57,36 @@ public class BackupService {
     }
 
     private BackupVault syncBackupVault(BackupVaultResource azureVault, LocalDateTime now) {
-        BackupVault existing = backupVaultRepository.findByVaultName(azureVault.name()).orElse(null);
-
         String tags = azureVault.tags() != null ? azureVault.tags().toString() : null;
         String storageType = null;
+        String datastoreType = null;
+
         if (azureVault.properties() != null && azureVault.properties().storageSettings() != null
                 && !azureVault.properties().storageSettings().isEmpty()) {
-            storageType = azureVault.properties().storageSettings().get(0).type().toString();
+            storageType = azureVault.properties().storageSettings().get(0).type() != null
+                    ? azureVault.properties().storageSettings().get(0).type().toString() : null;
+            datastoreType = azureVault.properties().storageSettings().get(0).datastoreType() != null
+                    ? azureVault.properties().storageSettings().get(0).datastoreType().toString() : null;
         }
+
+        log.info("Fields Being Saved to Database:");
+        log.info("  - vaultName: {}", azureVault.name());
+        log.info("  - resourceGroup: {}", azureVault.resourceGroupName());
+        log.info("  - location: {}", azureVault.location());
+        log.info("  - storageType: {}", storageType);
+        log.info("  - tags: {}", tags);
+        log.info("  - createdAt/updatedAt: {}", now);
+
+        log.info("MISSING FIELDS (Azure provides but NOT saving to DB):");
+        log.info("  - provisioningState: {}", azureVault.properties() != null ? azureVault.properties().provisioningState() : "N/A");
+        log.info("  - softDelete settings: {}", azureVault.properties() != null && azureVault.properties().securitySettings() != null);
+        log.info("  - crossRegionRestore: {}", azureVault.properties() != null && azureVault.properties().featureSettings() != null);
+        log.info("  - systemData (createdBy, createdAt, lastModifiedAt): {}", azureVault.systemData() != null ? "AVAILABLE" : "N/A");
+        log.info("  - datastoreType: {}", datastoreType);
+        log.info("  - identity: {}", azureVault.identity() != null ? azureVault.identity().principalId() : "N/A");
+        log.info("  - etag: {}", azureVault.etag());
+
+        BackupVault existing = backupVaultRepository.findByVaultName(azureVault.name()).orElse(null);
 
         if (existing == null) {
             BackupVault newVault = BackupVault.builder()
@@ -74,48 +99,76 @@ public class BackupService {
                     .updatedAt(now)
                     .build();
             backupVaultRepository.save(newVault);
-            log.info("Added new backup vault: {}", azureVault.name());
+            log.info("✅ ADDED new backup vault: {}", azureVault.name());
             return newVault;
         } else {
             existing.setStorageType(storageType);
             existing.setTags(tags);
             existing.setUpdatedAt(now);
             backupVaultRepository.save(existing);
-            log.info("Updated backup vault: {}", azureVault.name());
+            log.info("✅ UPDATED backup vault: {}", azureVault.name());
             return existing;
         }
     }
 
     private void syncProtectedItems(BackupVaultResource azureVault, BackupVault vault, LocalDateTime now) {
+        log.info("=== Syncing Protected Items for Vault: {} ===", vault.getVaultName());
+
         protectedItemRepository.deactivateAllByVaultId(vault.getId());
 
         PagedIterable<BackupInstanceResource> azureInstances = dataProtectionManager
                 .backupInstances()
                 .list(azureVault.resourceGroupName(), azureVault.name());
 
+        int totalInstances = 0;
         for (BackupInstanceResource instance : azureInstances) {
-            if (instance.properties() == null) continue;
+            totalInstances++;
+            log.info("--- Protected Instance {} ---", totalInstances);
+            log.info("Azure Raw Data:");
+            log.info("  - Instance ID: {}", instance.id());
+            log.info("  - Instance Name: {}", instance.name());
+            log.info("  - Type: {}", instance.type());
+
+            if (instance.properties() == null) {
+                log.warn("  - No properties found for this instance");
+                continue;
+            }
 
             BackupInstance props = instance.properties();
+
+            log.info("  - Protection Status: {}", props.protectionStatus() != null ? props.protectionStatus().status() : "N/A");
+            log.info("  - Current Protection State: {}", props.currentProtectionState());
+            log.info("  - Protection Error Details: {}", props.protectionErrorDetails());
 
             String backupInstanceId = extractLastSegment(instance.id());
             String dataSourceName = null;
             String dataSourceType = null;
-            String protectionStatus = null;
+            String resourceId = null;
 
             if (props.dataSourceInfo() != null) {
                 dataSourceName = extractLastSegment(props.dataSourceInfo().resourceId());
+                resourceId = props.dataSourceInfo().resourceId();
                 dataSourceType = props.dataSourceInfo().objectType();
                 if (dataSourceType != null && dataSourceType.contains("/")) {
                     dataSourceType = dataSourceType.substring(dataSourceType.lastIndexOf("/") + 1);
                 }
+                log.info("  - Data Source Name: {}", dataSourceName);
+                log.info("  - Data Source Resource ID: {}", resourceId);
+                log.info("  - Data Source Type: {}", dataSourceType);
+                log.info("  - Data Source Location: {}", props.dataSourceInfo().resourceLocation());
             }
 
-            if (props.protectionStatus() != null && props.protectionStatus().status() != null) {
-                protectionStatus = props.protectionStatus().status().toString();
+            if (props.policyInfo() != null) {
+                log.info("  - Policy ID: {}", props.policyInfo().policyId());
+                if (props.policyInfo().policyParameters() != null) {
+                    log.info("  - Policy Parameters: {}", props.policyInfo().policyParameters());
+                }
             }
+
+            log.info("  - Object Type: {}", props.objectType());
 
             Vm linkedVm = findVmByDiskName(dataSourceName);
+            log.info("  - Linked VM in Database: {}", linkedVm != null ? linkedVm.getName() : "NOT FOUND");
 
             Optional<ProtectedItem> existing = protectedItemRepository.findByBackupInstanceId(backupInstanceId);
 
@@ -126,25 +179,29 @@ public class BackupService {
                         .backupInstanceId(backupInstanceId)
                         .dataSourceName(dataSourceName)
                         .dataSourceType(dataSourceType)
-                        .protectionStatus(protectionStatus)
+                        .protectionStatus(props.protectionStatus() != null && props.protectionStatus().status() != null
+                                ? props.protectionStatus().status().toString() : null)
                         .isActive(true)
                         .firstDetectedAt(now)
                         .lastSeenAt(now)
                         .build();
                 protectedItemRepository.save(newItem);
-                log.info("Added protected item: {} for vault: {}", dataSourceName, vault.getVaultName());
+                log.info("  ✅ ADDED protected item: {}", dataSourceName);
             } else {
                 ProtectedItem item = existing.get();
                 item.setVm(linkedVm);
                 item.setDataSourceName(dataSourceName);
                 item.setDataSourceType(dataSourceType);
-                item.setProtectionStatus(protectionStatus);
+                item.setProtectionStatus(props.protectionStatus() != null && props.protectionStatus().status() != null
+                        ? props.protectionStatus().status().toString() : null);
                 item.setIsActive(true);
                 item.setLastSeenAt(now);
                 protectedItemRepository.save(item);
-                log.info("Updated protected item: {} for vault: {}", dataSourceName, vault.getVaultName());
+                log.info("  ✅ UPDATED protected item: {}", dataSourceName);
             }
         }
+
+        log.info("=== Total Protected Items Synced for Vault {}: {} ===", vault.getVaultName(), totalInstances);
     }
 
     private void syncBackupJobsForVault(BackupVault vault, String resourceGroup, OffsetDateTime todayStart, OffsetDateTime todayEnd) {
@@ -378,6 +435,48 @@ public class BackupService {
         String result = String.format("Backup history sync completed. Saved: %d, Skipped (duplicates): %d", totalSaved, totalSkipped);
         log.info(result);
         return result;
+    }
+
+    @Transactional
+    public List<BackupVaultWithItemsDTO> getAllBackupVaultsWithItems() {
+        List<BackupVault> vaults = backupVaultRepository.findAll();
+
+        return vaults.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    private BackupVaultWithItemsDTO convertToDTO(BackupVault vault) {
+        BackupVaultWithItemsDTO dto = new BackupVaultWithItemsDTO();
+
+        dto.setVaultName(vault.getVaultName());
+        dto.setResourceGroup(vault.getResourceGroup());
+        dto.setLocation(vault.getLocation());
+        dto.setStorageType(vault.getStorageType());
+
+        List<ProtectedItem> items = protectedItemRepository.findByBackupVaultIdAndIsActiveTrue(vault.getId());
+
+        List<ProtectedItemInfoDTO> itemDTOs = items.stream()
+                .map(this::convertItemToDTO)
+                .collect(Collectors.toList());
+
+        dto.setProtectedItems(itemDTOs);
+
+        return dto;
+    }
+
+    private ProtectedItemInfoDTO convertItemToDTO(ProtectedItem item) {
+        ProtectedItemInfoDTO dto = new ProtectedItemInfoDTO();
+
+        dto.setDataSourceName(item.getDataSourceName());
+        dto.setProtectionStatus(item.getProtectionStatus());
+
+        if (item.getVm() != null) {
+            dto.setVmName(item.getVm().getName());
+            dto.setVmId(item.getVm().getId());
+        }
+
+        return dto;
     }
 
     private Vm findVmByDiskName(String diskName) {

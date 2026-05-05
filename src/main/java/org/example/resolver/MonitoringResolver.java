@@ -1,6 +1,7 @@
 package org.example.resolver;
 
 import com.azure.resourcemanager.AzureResourceManager;
+import org.example.config.SchedulerConfig;
 import org.example.service.AlertService;
 import org.example.service.AzureMonitoringService;
 import org.example.service.CostService;
@@ -9,6 +10,7 @@ import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Controller
@@ -19,17 +21,19 @@ public class MonitoringResolver {
     public final PerformanceService performanceService;
     public final AlertService alertService;
     public final CostService costService;
+    private final SchedulerConfig schedulerConfig;
 
     public MonitoringResolver(AzureMonitoringService service,
                               AzureResourceManager azureResourceManager,
                               PerformanceService performanceService,
                               AlertService alertService,
-                              CostService costService) {
+                              CostService costService, SchedulerConfig schedulerConfig) {
         this.service = service;
         this.azureResourceManager = azureResourceManager;
         this.performanceService = performanceService;
         this.alertService = alertService;
         this.costService = costService;
+        this.schedulerConfig = schedulerConfig;
     }
 
     @QueryMapping
@@ -49,14 +53,28 @@ public class MonitoringResolver {
 
     @MutationMapping
     public String triggerMetricsSync() {
-        performanceService.syncMetricsFromAzure();
-        return "Metrics sync triggered";
+        schedulerConfig.updateStatusOnly("performance", "RUNNING");
+        try {
+            performanceService.syncMetricsFromAzure();
+            schedulerConfig.updateExecutionStatus("performance", LocalDateTime.now(), "SUCCESS");
+            return "Metrics sync triggered";
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("performance", "FAILED");
+            throw e;
+        }
     }
 
     @MutationMapping
     public String triggerAlertSync() {
-        alertService.syncLastDayAlerts();
-        return "Alert sync (last 24 hours) triggered";
+        schedulerConfig.updateStatusOnly("alert", "RUNNING");
+        try {
+            alertService.syncLastDayAlerts();
+            schedulerConfig.updateExecutionStatus("alert", LocalDateTime.now(), "SUCCESS");
+            return "Alert sync (last 24 hours) triggered";
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("alert", "FAILED");
+            throw e;
+        }
     }
 
     @MutationMapping

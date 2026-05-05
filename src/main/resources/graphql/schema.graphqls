@@ -102,7 +102,7 @@ type SchedulerStatus {
 
 type SchedulerStatusMap {
     performance: SchedulerStatus!
-    cost: SchedulerStatus!
+    backup: SchedulerStatus!
     invoice: SchedulerStatus!
     infra: SchedulerStatus!
     alert: SchedulerStatus!
@@ -463,6 +463,21 @@ type VmBackupHistoryResponse {
     disks: [DiskBackupHistory!]!
 }
 
+type BackupVaultWithItems {
+    vaultName: String!
+    resourceGroup: String!
+    location: String!
+    storageType: String!
+    protectedItems: [ProtectedItemInfo!]!
+}
+
+type ProtectedItemInfo {
+    dataSourceName: String!
+    protectionStatus: String!
+    vmName: String
+    vmId: Int
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -639,4 +654,5 @@ type Query {
     getBackupVaultByName(vaultName: String!): BackupVault
     getProtectedItemsByStatus(protectionStatus: String!): [ProtectedItem!]!
     getVmBackupHistoryByDateRange(vmId: ID!, startDate: String!, endDate: String!): VmBackupHistoryResponse!
+    getAllBackupVaultsWithItems: [BackupVaultWithItems!]!
 }

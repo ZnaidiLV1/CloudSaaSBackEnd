@@ -4,7 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
-import org.example.service.CostService;
+import org.example.service.BackupService;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Component;
@@ -15,32 +15,33 @@ import java.util.concurrent.ScheduledFuture;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class CostScheduler {
+public class BackupScheduler {
 
-    private final CostService costService;
+    private final BackupService backupService;
     private final TaskScheduler taskScheduler;
     private final SchedulerConfig schedulerConfig;
     private ScheduledFuture<?> scheduledTask;
 
     public void initialize() {
-        String cron = schedulerConfig.getCronForTask("cost");
-        log.info("Initializing CostScheduler with cron: {}", cron);
+        String cron = schedulerConfig.getCronForTask("backup");
+        log.info("Initializing BackupScheduler with cron: {}", cron);
         scheduleTask(cron);
     }
+
     public void executeTask() {
         long startTime = System.currentTimeMillis();
-        log.info("CostScheduler — pulling daily costs...");
+        log.info("BackupScheduler — syncing backup data...");
 
-        schedulerConfig.updateStatusOnly("cost", "RUNNING");
+        schedulerConfig.updateStatusOnly("backup", "RUNNING");
 
         try {
-            costService.syncDailyCostsFromAzure();
+            backupService.syncAllBackupData();
             long duration = System.currentTimeMillis() - startTime;
-            schedulerConfig.updateExecutionStatus("cost", LocalDateTime.now(), "SUCCESS");
-            log.info("CostScheduler — completed successfully in {} ms", duration);
+            schedulerConfig.updateExecutionStatus("backup", LocalDateTime.now(), "SUCCESS");
+            log.info("BackupScheduler — completed successfully in {} ms", duration);
         } catch (Exception e) {
-            log.error("CostScheduler — failed: {}", e.getMessage());
-            schedulerConfig.updateStatusOnly("cost", "FAILED");
+            log.error("BackupScheduler — failed: {}", e.getMessage());
+            schedulerConfig.updateStatusOnly("backup", "FAILED");
         }
     }
 

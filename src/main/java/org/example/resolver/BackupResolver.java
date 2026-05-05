@@ -2,7 +2,9 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.config.SchedulerConfig;
 import org.example.dto.BackupDTOs.VmBackupHistoryResponse;
+import org.example.dto.backupDTOS.BackupVaultWithItemsDTO;
 import org.example.entity.BackupJobHistory;
 import org.example.entity.BackupVault;
 import org.example.entity.ProtectedItem;
@@ -15,6 +17,7 @@ import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,11 +30,20 @@ public class BackupResolver {
     private final BackupVaultRepository backupVaultRepository;
     private final ProtectedItemRepository protectedItemRepository;
     private final BackupJobHistoryRepository backupJobHistoryRepository;
+    private final SchedulerConfig schedulerConfig;
 
     @MutationMapping
     public String syncBackupData() {
         log.info("Triggering backup data sync...");
-        return backupService.syncAllBackupData();
+        schedulerConfig.updateStatusOnly("backup", "RUNNING");
+        try {
+            String result = backupService.syncAllBackupData();
+            schedulerConfig.updateExecutionStatus("backup", LocalDateTime.now(), "SUCCESS");
+            return result;
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("backup", "FAILED");
+            throw e;
+        }
     }
 
     @QueryMapping
@@ -62,5 +74,10 @@ public class BackupResolver {
     public String syncBackupHistoryLast30Days() {
         log.info("Triggering backup history sync for last 30 days...");
         return backupService.syncBackupHistoryLast30Days();
+    }
+
+    @QueryMapping
+    public List<BackupVaultWithItemsDTO> getAllBackupVaultsWithItems() {
+        return backupService.getAllBackupVaultsWithItems();
     }
 }

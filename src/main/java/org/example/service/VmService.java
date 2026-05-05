@@ -49,10 +49,9 @@ public class VmService {
                 vm.setName(azureVm.name());
                 vm.setResourceGroup(azureVm.resourceGroupName());
                 vm.setRegion(azureVm.regionName());
-                vm.setStatus(azureVm.powerState() != null
-                        ? azureVm.powerState().toString()
-                        : "UNKNOWN"
-                );
+
+                String powerState = azureVm.powerState() != null ? azureVm.powerState().toString() : "UNKNOWN";
+                vm.setStatus(powerState);
 
                 String vmType = azureVm.size() != null ? azureVm.size().toString() : "UNKNOWN";
 
@@ -61,7 +60,6 @@ public class VmService {
                 }
 
                 vmType = vmType.replace("_", " ");
-
                 vm.setVmType(vmType);
 
                 String publicIp = null;
@@ -111,6 +109,13 @@ public class VmService {
                 }
 
                 vmRepository.save(vm);
+
+                // NEW LOG: Show status and public IP for each VM
+                log.info("VM: {} | Status: {} | Public IP: {}",
+                        vm.getName(),
+                        powerState,
+                        publicIp != null ? publicIp : "No public IP");
+
                 log.info("VM saved successfully: {} with type: {}, public IP: {}",
                         vm.getName(), vm.getVmType(), vm.getPublicIpAddress());
 

@@ -2,6 +2,7 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.config.SchedulerConfig;
 import org.example.dto.costDTOs.ServiceCostsResponse;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
@@ -13,6 +14,7 @@ import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -22,11 +24,20 @@ public class CostResolver {
 
     private final MonthlyCostGetGrouped monthlyCostGetGrouped;
     private final MonthlyCostSyncService monthlyCostSyncService;
+    private final SchedulerConfig schedulerConfig;
 
     @MutationMapping
     public String syncMonthlyCosts(@Argument Integer year, @Argument Integer month) {
         log.info("GraphQL mutation: syncMonthlyCosts for {}-{}", year, month);
-        return monthlyCostSyncService.syncMonthlyCostsFromAzure(year, month);
+        schedulerConfig.updateStatusOnly("monthlyCost", "RUNNING");
+        try {
+            String result = monthlyCostSyncService.syncMonthlyCostsFromAzure(year, month);
+            schedulerConfig.updateExecutionStatus("monthlyCost", LocalDateTime.now(), "SUCCESS");
+            return result;
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("monthlyCost", "FAILED");
+            throw e;
+        }
     }
 
     @QueryMapping

@@ -2,6 +2,7 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.config.SchedulerConfig;
 import org.example.dto.CostAmountsResponse;
 import org.example.dto.InvoiceDto;
 import org.example.dto.InvoicePageResponse;
@@ -11,6 +12,7 @@ import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -19,6 +21,7 @@ import java.util.List;
 public class InvoiceResolver {
 
     private final InvoiceService invoiceService;
+    private final SchedulerConfig schedulerConfig;
 
     @QueryMapping
     public List<InvoiceDto> invoicesForMonth(
@@ -30,7 +33,15 @@ public class InvoiceResolver {
 
     @MutationMapping
     public String savePreviousMonthInvoice() {
-        return invoiceService.savePreviousMonthInvoice();
+        schedulerConfig.updateStatusOnly("invoice", "RUNNING");
+        try {
+            String result = invoiceService.savePreviousMonthInvoice();
+            schedulerConfig.updateExecutionStatus("invoice", LocalDateTime.now(), "SUCCESS");
+            return result;
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("invoice", "FAILED");
+            throw e;
+        }
     }
 
     @MutationMapping

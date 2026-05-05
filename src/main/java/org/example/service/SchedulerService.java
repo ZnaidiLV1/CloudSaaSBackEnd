@@ -14,11 +14,11 @@ import java.util.Map;
 public class SchedulerService {
 
     private final PerformanceScheduler performanceScheduler;
-    private final CostScheduler costScheduler;
     private final InvoiceScheduler invoiceScheduler;
     private final InfraScheduler infraScheduler;
     private final AlertScheduler alertScheduler;
     private final MonthlyCostScheduler monthlyCostScheduler;
+    private final BackupScheduler backupScheduler;
     private final SchedulerConfig schedulerConfig;
 
     public String updateSchedule(String task, String cronExpression) {
@@ -30,9 +30,6 @@ public class SchedulerService {
         switch (taskLower) {
             case "performance":
                 performanceScheduler.updateSchedule(cronExpression);
-                break;
-            case "cost":
-                costScheduler.updateSchedule(cronExpression);
                 break;
             case "invoice":
                 invoiceScheduler.updateSchedule(cronExpression);
@@ -46,8 +43,11 @@ public class SchedulerService {
             case "monthlycost":
                 monthlyCostScheduler.updateSchedule(cronExpression);
                 break;
+            case "backup":
+                backupScheduler.updateSchedule(cronExpression);
+                break;
             default:
-                return "Unknown task: " + task + ". Available tasks: performance, cost, invoice, infra, alert, monthlyCost";
+                return "Unknown task: " + task + ". Available tasks: performance, invoice, infra, alert, monthlyCost, backup";
         }
 
         return "Successfully updated " + task + " schedule to: " + cronExpression;

@@ -8,10 +8,8 @@ import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.scheduling.support.SimpleTriggerContext;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,11 +21,11 @@ public class SchedulerConfig {
 
     private static final Map<String, String> DEFAULTS = Map.of(
             "performance", "0 0 * * * *",
-            "cost", "0 0 1 * * *",
             "invoice", "0 0 2 11 * *",
             "infra", "0 0 2 * * *",
             "alert", "0 0 */2 * * *",
-            "monthlyCost", "0 0 2 11 * *"
+            "monthlyCost", "0 0 2 11 * *",
+            "backup", "0 0 10 * * *"
     );
 
     private final SchedulerConfigRepository repository;

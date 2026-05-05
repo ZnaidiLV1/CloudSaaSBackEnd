@@ -1,6 +1,7 @@
 package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
+import org.example.config.SchedulerConfig;
 import org.example.service.VmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -19,15 +21,22 @@ public class VmResolver {
     private static final Logger log = LoggerFactory.getLogger(VmResolver.class);
 
     private final VmService vmService;
+    private final SchedulerConfig schedulerConfig;
+
 
     @MutationMapping
     public String syncAzureInfrastructure() {
         log.info("GraphQL mutation called: syncAzureInfrastructure");
-        vmService.syncAzureInfrastructure();
-        log.info("GraphQL mutation completed");
-        return "Azure sync completed";
+        schedulerConfig.updateStatusOnly("infra", "RUNNING");
+        try {
+            vmService.syncAzureInfrastructure();
+            schedulerConfig.updateExecutionStatus("infra", LocalDateTime.now(), "SUCCESS");
+            return "Azure sync completed";
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("infra", "FAILED");
+            throw e;
+        }
     }
-
     @QueryMapping
     public List<VmService.VmBillingDto> getAllVmBillingTypes() {
         return vmService.getAllVmBillingTypes();

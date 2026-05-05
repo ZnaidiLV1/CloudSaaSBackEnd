@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
 public class SchedulerInitializer {
 
     private final PerformanceScheduler performanceScheduler;
-    private final CostScheduler costScheduler;
     private final InvoiceScheduler invoiceScheduler;
+    private final BackupScheduler backupScheduler;
     private final InfraScheduler infraScheduler;
     private final AlertScheduler alertScheduler;
     private final MonthlyCostScheduler monthlyCostScheduler;
@@ -24,7 +24,7 @@ public class SchedulerInitializer {
         log.info("=== Initializing all schedulers after database load ===");
 
         performanceScheduler.initialize();
-        costScheduler.initialize();
+        backupScheduler.initialize();
         invoiceScheduler.initialize();
         infraScheduler.initialize();
         alertScheduler.initialize();
