@@ -209,8 +209,8 @@ type DailyPerformance {
     date: String!
     maxCpu: Float!
     maxCpuTime: String!
-    maxRamPercentage: Float!
-    maxRamTime: String!
+    avgRamPercentage: Float!
+    avgRamTime: String!
 }
 
 type VmPerformanceResponse {
@@ -478,6 +478,15 @@ type ProtectedItemInfo {
     vmId: Int
 }
 
+type DiskSizeAtTimeResponse {
+    vmName: String!
+    timestamp: String!
+    diskTotalGB: Float!
+    diskUsedPercent: Float!
+    diskUsedGB: Float!
+    diskFreeGB: Float!
+}
+
 #  MUTATIONS
 type Mutation {
     # Auth
@@ -655,4 +664,6 @@ type Query {
     getProtectedItemsByStatus(protectionStatus: String!): [ProtectedItem!]!
     getVmBackupHistoryByDateRange(vmId: ID!, startDate: String!, endDate: String!): VmBackupHistoryResponse!
     getAllBackupVaultsWithItems: [BackupVaultWithItems!]!
+
+    getDiskSizeAtTime(vmName: String!, timestamp: String!): DiskSizeAtTimeResponse!
 }

@@ -149,12 +149,12 @@ public class PerformanceService {
                     .build();
         }
 
-        PerformanceMetric maxRamMetric = metrics.stream()
-                .filter(m -> m.getRamMax() != null)
-                .max(Comparator.comparing(PerformanceMetric::getRamMax, Comparator.nullsLast(Double::compareTo)))
+        PerformanceMetric minRamMetric = metrics.stream()
+                .filter(m -> m.getRamMin() != null)
+                .min(Comparator.comparing(PerformanceMetric::getRamMin, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        if (maxRamMetric == null || maxRamMetric.getRamMax() == null) {
+        if (minRamMetric == null || minRamMetric.getRamMin() == null) {
             return DailyAvailableRam.builder()
                     .date(date.format(DATE_FORMATTER))
                     .availableRamPercentage(0.0)
@@ -162,10 +162,10 @@ public class PerformanceService {
                     .build();
         }
 
-        double availableRamPercentage = 100- Math.round(toAvailableRamPercent(maxRamMetric.getRamMax()) * 100.0) / 100.0;
+        double availableRamPercentage = Math.round(toAvailableRamPercent(minRamMetric.getRamMin()) * 100.0) / 100.0;
 
-        String timestamp = maxRamMetric.getSavedAt() != null
-                ? maxRamMetric.getSavedAt().format(TIME_FORMATTER)
+        String timestamp = minRamMetric.getSavedAt() != null
+                ? minRamMetric.getSavedAt().format(TIME_FORMATTER)
                 : "";
 
         return DailyAvailableRam.builder()
@@ -188,12 +188,12 @@ public class PerformanceService {
         List<HourlyRamValue> hourlyRam = new ArrayList<>();
 
         for (PerformanceMetric metric : metrics) {
-            if (metric.getRamMin() != null) {
+            if (metric.getRamAvg() != null) {
                 String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
-                double ramUsedPercentage = Math.round(toUsedRamPercent(metric.getRamMin()) * 100.0) / 100.0;
+                double ramAvailablePercentage = Math.round(toAvailableRamPercent(metric.getRamAvg()) * 100.0) / 100.0;
                 hourlyRam.add(HourlyRamValue.builder()
                         .hour(hour)
-                        .ramUsedPercentage(ramUsedPercentage)
+                        .ramUsedPercentage(ramAvailablePercentage)
                         .build());
             }
         }
@@ -219,9 +219,9 @@ public class PerformanceService {
         List<HourlyAvailableRamValue> hourlyAvailableRam = new ArrayList<>();
 
         for (PerformanceMetric metric : metrics) {
-            if (metric.getRamMax() != null) {
+            if (metric.getRamMin() != null) {
                 String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
-                double availableRamPercentage =100- Math.round(toAvailableRamPercent(metric.getRamMax()) * 100.0) / 100.0;
+                double availableRamPercentage = Math.round(toAvailableRamPercent(metric.getRamMin()) * 100.0) / 100.0;
                 hourlyAvailableRam.add(HourlyAvailableRamValue.builder()
                         .hour(hour)
                         .availableRamPercentage(availableRamPercentage)
@@ -331,8 +331,8 @@ public class PerformanceService {
                     .date(date.format(DATE_FORMATTER))
                     .maxCpu(0.0)
                     .maxCpuTime("")
-                    .maxRamPercentage(0.0)
-                    .maxRamTime("")
+                    .avgRamPercentage(0.0)
+                    .avgRamTime("")
                     .build();
         }
 
@@ -341,23 +341,47 @@ public class PerformanceService {
                 .max(Comparator.comparing(PerformanceMetric::getCpuMax, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        // ramMin = least free GB = highest used RAM = peak usage moment
-        PerformanceMetric maxRamUsedMetric = metrics.stream()
+        List<PerformanceMetric> validRamMetrics = metrics.stream()
+                .filter(m -> m.getRamAvg() != null)
+                .toList();
+
+        double avgRamPercentage = 0.0;
+        String avgRamTime = "";
+
+        if (!validRamMetrics.isEmpty()) {
+            double totalAvailableRamPercentage = 0.0;
+            for (PerformanceMetric metric : validRamMetrics) {
+                totalAvailableRamPercentage += toAvailableRamPercent(metric.getRamAvg());
+            }
+            avgRamPercentage = Math.round((totalAvailableRamPercentage / validRamMetrics.size()) * 100.0) / 100.0;
+
+            PerformanceMetric avgRamMetric = validRamMetrics.get(validRamMetrics.size() / 2);
+            avgRamTime = avgRamMetric.getSavedAt() != null
+                    ? avgRamMetric.getSavedAt().format(TIME_FORMATTER)
+                    : "";
+        }
+
+        PerformanceMetric minRamMetric = metrics.stream()
                 .filter(m -> m.getRamMin() != null)
                 .min(Comparator.comparing(PerformanceMetric::getRamMin, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        double maxRamPercentage = 0.0;
-        if (maxRamUsedMetric != null && maxRamUsedMetric.getRamMin() != null) {
-            maxRamPercentage = Math.round(toUsedRamPercent(maxRamUsedMetric.getRamMin()) * 100.0) / 100.0;
+        double minAvailableRamPercentage = 0.0;
+        String minAvailableRamTime = "";
+
+        if (minRamMetric != null && minRamMetric.getRamMin() != null) {
+            minAvailableRamPercentage = Math.round(toAvailableRamPercent(minRamMetric.getRamMin()) * 100.0) / 100.0;
+            minAvailableRamTime = minRamMetric.getSavedAt() != null
+                    ? minRamMetric.getSavedAt().format(TIME_FORMATTER)
+                    : "";
         }
 
         return DailyPerformance.builder()
                 .date(date.format(DATE_FORMATTER))
                 .maxCpu(maxCpuMetric != null && maxCpuMetric.getCpuMax() != null ? maxCpuMetric.getCpuMax() : 0.0)
                 .maxCpuTime(maxCpuMetric != null && maxCpuMetric.getSavedAt() != null ? maxCpuMetric.getSavedAt().format(TIME_FORMATTER) : "")
-                .maxRamPercentage(maxRamPercentage)
-                .maxRamTime(maxRamUsedMetric != null && maxRamUsedMetric.getSavedAt() != null ? maxRamUsedMetric.getSavedAt().format(TIME_FORMATTER) : "")
+                .avgRamPercentage(avgRamPercentage)
+                .avgRamTime(avgRamTime)
                 .build();
     }
 
@@ -385,14 +409,12 @@ public class PerformanceService {
                 .average()
                 .orElse(0.0);
 
-        // ramMin = least free = most used → max used RAM % of the day
         double maxRamPercentage = metrics.stream()
                 .filter(m -> m.getRamMin() != null)
                 .mapToDouble(m -> toUsedRamPercent(m.getRamMin()))
                 .max()
                 .orElse(0.0);
 
-        // ramAvg = average free GB → average used RAM %
         double avgRamPercentage = metrics.stream()
                 .filter(m -> m.getRamAvg() != null)
                 .mapToDouble(m -> toUsedRamPercent(m.getRamAvg()))

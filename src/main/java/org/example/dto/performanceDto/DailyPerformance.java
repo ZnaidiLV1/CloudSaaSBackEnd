@@ -13,6 +13,6 @@ public class DailyPerformance {
     private String date;
     private Double maxCpu;
     private String maxCpuTime;
-    private Double maxRamPercentage;
-    private String maxRamTime;
+    private Double avgRamPercentage;
+    private String avgRamTime;
 }

@@ -5,10 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
 import org.example.dto.BackupDTOs.VmBackupHistoryResponse;
 import org.example.dto.backupDTOS.BackupVaultWithItemsDTO;
-import org.example.entity.BackupJobHistory;
 import org.example.entity.BackupVault;
 import org.example.entity.ProtectedItem;
-import org.example.repository.BackupJobHistoryRepository;
 import org.example.repository.BackupVaultRepository;
 import org.example.repository.ProtectedItemRepository;
 import org.example.service.BackupService;
@@ -19,7 +17,6 @@ import org.springframework.stereotype.Controller;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -29,7 +26,6 @@ public class BackupResolver {
     private final BackupService backupService;
     private final BackupVaultRepository backupVaultRepository;
     private final ProtectedItemRepository protectedItemRepository;
-    private final BackupJobHistoryRepository backupJobHistoryRepository;
     private final SchedulerConfig schedulerConfig;
 
     @MutationMapping
@@ -80,4 +76,6 @@ public class BackupResolver {
     public List<BackupVaultWithItemsDTO> getAllBackupVaultsWithItems() {
         return backupService.getAllBackupVaultsWithItems();
     }
+
+
 }

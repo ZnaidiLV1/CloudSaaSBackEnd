@@ -33,6 +33,8 @@ public class BackupService {
     private final BackupJobHistoryRepository backupJobHistoryRepository;
     private final VmRepository vmRepository;
 
+    
+
     @Transactional
     public String syncAllBackupData() {
         log.info("Starting backup data sync...");
@@ -299,6 +301,10 @@ public class BackupService {
         List<DiskBackupHistory> disks = new ArrayList<>();
 
         for (ProtectedItem item : protectedItems) {
+            if (!"ProtectionConfigured".equals(item.getProtectionStatus())) {
+                continue;
+            }
+
             DiskBackupHistory diskInfo = new DiskBackupHistory();
             diskInfo.setDiskName(item.getDataSourceName());
             diskInfo.setProtectionStatus(item.getProtectionStatus());
