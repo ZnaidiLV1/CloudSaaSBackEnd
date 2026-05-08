@@ -21,7 +21,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -102,9 +104,6 @@ public class InvoiceService {
         }
     }
 
-    /**
-     * Fetch and save invoices from current month (February 2026) going back 12 months
-     */
     public String saveLast12MonthsInvoices() {
         try {
 
@@ -173,16 +172,18 @@ public class InvoiceService {
 
         List<Invoice> invoices = invoiceRepository.findInvoicesByBillingPeriodStartBetween(startDate, endDate);
 
-        List<Double> amounts = new ArrayList<>();
-        List<String> months = new ArrayList<>();
-
+        Map<String, Double> monthlyMap = new LinkedHashMap<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/yy");
 
         for (Invoice invoice : invoices) {
-            amounts.add(invoice.getTotalAmount());
             String monthYear = invoice.getBillingPeriodStart().format(formatter);
-            months.add(monthYear);
+            Double amount = invoice.getTotalAmount();
+
+            monthlyMap.merge(monthYear, amount, Double::sum);
         }
+
+        List<Double> amounts = new ArrayList<>(monthlyMap.values());
+        List<String> months = new ArrayList<>(monthlyMap.keySet());
 
         return CostAmountsResponse.builder()
                 .amounts(amounts)
@@ -195,23 +196,41 @@ public class InvoiceService {
             LocalDate start = LocalDate.of(startYear, startMonth, 1);
             LocalDate end = LocalDate.of(endYear, endMonth, 1);
 
+            log.info("========== STARTING saveInvoicesFromDateRange from {}-{} to {}-{} ==========",
+                    startYear, startMonth, endYear, endMonth);
+
             String raw = fetchInvoicesRaw();
+            log.info("Raw Azure response length: {} characters", raw != null ? raw.length() : 0);
 
             int savedCount = 0;
             int skippedCount = 0;
+            int monthsWithNoInvoices = 0;
 
             LocalDate monthIterator = start;
             while (!monthIterator.isAfter(end)) {
                 int year = monthIterator.getYear();
                 int month = monthIterator.getMonthValue();
 
+                log.info("Checking invoices for {}-{}", year, month);
+
                 List<InvoiceDto> invoices = parseAndFilter(raw, year, month);
+
+                if (invoices.isEmpty()) {
+                    monthsWithNoInvoices++;
+                    log.warn("No invoices found in Azure for {}-{}", year, month);
+                } else {
+                    log.info("Found {} invoices for {}-{}", invoices.size(), year, month);
+                }
 
                 for (InvoiceDto dto : invoices) {
                     if (invoiceRepository.findByInvoiceId(dto.getInvoiceId()).isPresent()) {
+                        log.info("Invoice {} already exists in DB, skipping", dto.getInvoiceId());
                         skippedCount++;
                         continue;
                     }
+
+                    log.info("Saving new invoice: {} for {}-{} with amount: {}",
+                            dto.getInvoiceId(), year, month, dto.getTotalAmount());
 
                     Invoice invoice = Invoice.builder()
                             .invoiceId(dto.getInvoiceId())
@@ -234,8 +253,8 @@ public class InvoiceService {
                 monthIterator = monthIterator.plusMonths(1);
             }
 
-            return String.format("Saved %d invoices from %d-%d to %d-%d",
-                    savedCount, startYear, startMonth, endYear, endMonth);
+            return String.format("Saved %d invoices from %d-%d to %d-%d (Skipped: %d, Months with no data: %d)",
+                    savedCount, startYear, startMonth, endYear, endMonth, skippedCount, monthsWithNoInvoices);
 
         } catch (Exception e) {
             log.error("Error saving invoices from date range", e);

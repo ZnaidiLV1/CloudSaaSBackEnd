@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.example.enums.BillingType;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Entity
@@ -40,6 +41,22 @@ public class Vm {
 
     @Column(name = "domain_name")
     private String domainName;
+
+    @ManyToOne
+    @JoinColumn(name = "workspace_id")
+    private Workspace workspace;
+
+    @Column(name = "disk_free_percent")
+    private Double diskFreePercent;
+
+    @Column(name = "disk_free_mb")
+    private Double diskFreeMB;
+
+    @Column(name = "disk_free_gb")
+    private Double diskFreeGB;
+
+    @Column(name = "disk_last_updated")
+    private LocalDateTime diskLastUpdated;
 
     @Builder.Default
     @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})

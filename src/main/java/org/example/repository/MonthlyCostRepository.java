@@ -63,4 +63,6 @@ public interface MonthlyCostRepository extends JpaRepository<MonthlyCost, Long> 
 
     @Query("SELECT DISTINCT m.serviceName FROM MonthlyCost m ORDER BY m.serviceName")
     List<String> findAllDistinctServiceNamesIncludingVirtualMachines();
+
+    boolean existsByMonthAndYear(int month, int year);
 }

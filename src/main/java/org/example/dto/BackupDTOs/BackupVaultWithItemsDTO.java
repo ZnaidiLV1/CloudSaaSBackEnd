@@ -1,6 +1,7 @@
-package org.example.dto.backupDTOS;
+package org.example.dto.BackupDTOs;
 
 import lombok.Data;
+
 import java.util.List;
 
 @Data

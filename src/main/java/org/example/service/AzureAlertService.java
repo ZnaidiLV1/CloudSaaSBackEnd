@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.AzureAlert;
 import org.example.entity.Vm;
+import org.example.repository.AzureAlertRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ public class AzureAlertService {
     private final TokenCredential tokenCredential;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ConcurrentHashMap<String, MetricAlertRule> ruleCache = new ConcurrentHashMap<>();
+    private final AzureAlertRepository alertRepository;  // ADD THIS - inject your repository
 
     @Value("${azure.subscription-id}")
     private String subscriptionId;
@@ -122,7 +124,32 @@ public class AzureAlertService {
                             if (alertTime.isAfter(from)) {
                                 AzureAlert alert = parseAlertNode(alertNode, vm, vmResourceId, vmName, token);
                                 if (alert != null) {
-                                    result.add(alert);
+                                    // ADD THIS BLOCK - check and update existing alert
+                                    AzureAlert existingAlert = alertRepository.findByAzureAlertId(alert.getAzureAlertId());
+
+                                    if (existingAlert != null) {
+                                        // Alert exists in DB
+                                        if ("Fired".equals(existingAlert.getMonitorCondition()) &&
+                                                "Resolved".equals(alert.getMonitorCondition())) {
+                                            // Update existing FIRED alert to RESOLVED
+                                            existingAlert.setMonitorCondition("Resolved");
+                                            existingAlert.setResolvedAt(alert.getResolvedAt());
+                                            // PRESERVE the metric value from the existing alert (don't overwrite with null)
+                                            // existingAlert already has the metric value from when it was fired
+                                            AzureAlert savedAlert = alertRepository.save(existingAlert);
+                                            result.add(savedAlert);
+                                            log.info("UPDATED alert {} from FIRED to RESOLVED - firedAt={}, resolvedAt={}, metricValue={}",
+                                                    alert.getAzureAlertId(), savedAlert.getFiredAt(), savedAlert.getResolvedAt(), savedAlert.getMetricValue());
+                                        } else {
+                                            // Alert already exists and doesn't need update, skip adding to result
+                                            log.debug("Alert {} already exists with condition {}", alert.getAzureAlertId(), existingAlert.getMonitorCondition());
+                                        }
+                                    } else {
+                                        // New alert, save it
+                                        AzureAlert savedAlert = alertRepository.save(alert);
+                                        result.add(savedAlert);
+                                        log.info("SAVED new alert {} [{}] - metricValue={}", alert.getAzureAlertId(), alert.getMonitorCondition(), alert.getMetricValue());
+                                    }
                                 }
                             }
                         }
@@ -256,6 +283,7 @@ public class AzureAlertService {
             String operator = null;
             Double threshold = null;
 
+            // ONLY fetch metric value for FIRED alerts
             if (alertId != null && alertRule != null && "Fired".equals(monitorCondition)) {
                 metricValue = fetchMetricValueFromAlertDetails(alertId, alertRule, token);
             }

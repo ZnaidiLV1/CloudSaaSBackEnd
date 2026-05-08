@@ -27,6 +27,8 @@ public interface AzureAlertRepository extends JpaRepository<AzureAlert, Long> {
     @Query("SELECT a FROM AzureAlert a WHERE a.vm.id = :vmId AND a.azureAlertId = :alertId")
     Optional<AzureAlert> findByVmIdAndAzureAlertId(@Param("vmId") Long vmId, @Param("alertId") String alertId);
 
+    AzureAlert findByAzureAlertId(String azureAlertId);
+
     @Query("SELECT a FROM AzureAlert a LEFT JOIN FETCH a.vm WHERE a.vm.id = :vmId")
     Page<AzureAlert> findByVmIdWithVm(@Param("vmId") Long vmId, Pageable pageable);
 

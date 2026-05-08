@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
 import org.example.dto.BackupDTOs.VmBackupHistoryResponse;
-import org.example.dto.backupDTOS.BackupVaultWithItemsDTO;
+import org.example.dto.BackupDTOs.BackupVaultWithItemsDTO;
 import org.example.entity.BackupVault;
 import org.example.entity.ProtectedItem;
 import org.example.repository.BackupVaultRepository;

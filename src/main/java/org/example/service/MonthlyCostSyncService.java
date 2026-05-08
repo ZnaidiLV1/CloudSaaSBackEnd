@@ -4,6 +4,8 @@ import com.azure.resourcemanager.costmanagement.CostManagementManager;
 import com.azure.resourcemanager.costmanagement.models.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.costDTOs.MissingMonthsResponse;
+import org.example.dto.costDTOs.MonthResult;
 import org.example.entity.MonthlyCost;
 import org.example.entity.Vm;
 import org.example.repository.MonthlyCostRepository;
@@ -14,10 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,6 +29,7 @@ public class MonthlyCostSyncService {
     private final CostManagementManager costManagementManager;
     private final MonthlyCostRepository monthlyCostRepository;
     private final VmRepository vmRepository;
+    private final MonthlyVmCostService monthlyVmCostService;
 
     @Value("${azure.subscription-id}")
     private String subscriptionId;
@@ -52,11 +52,9 @@ public class MonthlyCostSyncService {
             LocalDate firstDay = LocalDate.of(year, month, 1);
             LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
-            // Delete existing data
             int deletedCount = monthlyCostRepository.deleteByMonthAndYear(month, year);
             log.info("Deleted {} existing records for {}-{}", deletedCount, year, month);
 
-            // Fetch and process
             List<MonthlyCost> costsToSave = fetchAndProcessAzureCosts(firstDay, lastDay, month, year);
 
             if (costsToSave.isEmpty()) {
@@ -64,7 +62,6 @@ public class MonthlyCostSyncService {
                 return String.format("No cost data found for month %d/%d", month, year);
             }
 
-            // Bulk save
             List<MonthlyCost> savedCosts = monthlyCostRepository.saveAll(costsToSave);
 
             long duration = System.currentTimeMillis() - startTime;
@@ -74,8 +71,14 @@ public class MonthlyCostSyncService {
             log.info("========== SYNC COMPLETED for {}-{} in {} ms ==========", year, month, duration);
             log.info("Saved {} records ({} VM-associated, {} shared)", savedCosts.size(), vmAssociated, shared);
 
-            return String.format("Successfully saved %d records for %d/%d (%d VM-associated, %d shared, Duration: %d ms)",
-                    savedCosts.size(), month, year, vmAssociated, shared, duration);
+            
+            log.info("========== TRIGGERING calculateMonthlyVmCosts for {}-{} ==========", year, month);
+            String calculationResult = monthlyVmCostService.calculateMonthlyVmCosts(year, month);
+            log.info("Calculation result: {}", calculationResult);
+            
+
+            return String.format("Successfully saved %d records for %d/%d (%d VM-associated, %d shared, Duration: %d ms) | Calculation: %s",
+                    savedCosts.size(), month, year, vmAssociated, shared, duration, calculationResult);
 
         } catch (Exception e) {
             log.error("Sync failed for {}-{}: {}", year, month, e.getMessage(), e);
@@ -94,10 +97,10 @@ public class MonthlyCostSyncService {
             vmNameToIdCache.put(vmName, vm.getId());
             vmNamesLowerCase.add(vmName);
 
-            // Also store with underscores for pattern matching (convert hyphens to underscores)
+            
             vmNameToIdCache.put(vmName.replace("-", "_"), vm.getId());
 
-            // Extract UUID from Azure VM ID for backup mapping
+            
             if (vm.getAzureVmId() != null && !vm.getAzureVmId().isEmpty()) {
                 Matcher uuidMatcher = UUID_PATTERN.matcher(vm.getAzureVmId().toLowerCase());
                 if (uuidMatcher.find()) {
@@ -210,13 +213,13 @@ public class MonthlyCostSyncService {
             String pricingModel = getValueAsString(row, pricingModelIdx);
             String benefitName = getValueAsString(row, benefitNameIdx);
 
-            // Build display meter name
+            
             String displayMeterName = buildDisplayMeterName(meterName, benefitName, pricingModel);
 
-            // CRITICAL: Extract VM ID from resourceId using ALL patterns
+            
             Long vmId = extractVmIdFromResourceId(resourceId, serviceName, meterName);
 
-            // Determine resource category
+            
             String resourceCategory = getResourceCategory(resourceId, serviceName);
 
             return MonthlyCost.builder()
@@ -243,9 +246,9 @@ public class MonthlyCostSyncService {
      */
     private Long extractVmIdFromResourceId(String resourceId, String serviceName, String meterName) {
         if (resourceId == null || resourceId.isEmpty()) {
-            // For reservations without resourceId
+            
             if ("Reservation".equals(serviceName) || meterName != null && meterName.contains("[RESERVATION]")) {
-                return null; // Reservations are shared
+                return null; 
             }
             return null;
         }
@@ -253,9 +256,9 @@ public class MonthlyCostSyncService {
         String lowerResourceId = resourceId.toLowerCase();
         String extractedVmName = null;
 
-        // ========== PATTERN 1: Direct Virtual Machine ==========
-        // /subscriptions/.../virtualMachines/ltrms-db
-        // /subscriptions/.../virtualMachines/pap-serbia
+        
+        
+        
         Pattern vmDirectPattern = Pattern.compile("/virtual[mM]achines/([^/]+)");
         Matcher vmDirectMatcher = vmDirectPattern.matcher(resourceId);
         if (vmDirectMatcher.find()) {
@@ -263,8 +266,8 @@ public class MonthlyCostSyncService {
             log.debug("Pattern 1 (Direct VM): Found '{}'", extractedVmName);
         }
 
-        // ========== PATTERN 2: Disks with _osdisk_ ==========
-        // /disks/ltrms-db_osdisk_1_xxx
+        
+        
         if (extractedVmName == null) {
             Pattern diskPattern1 = Pattern.compile("/disks/([^/]+)_osdisk_");
             Matcher diskMatcher1 = diskPattern1.matcher(lowerResourceId);
@@ -274,8 +277,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 3: Disks with _os_disk ==========
-        // /disks/pap_os_disk
+        
+        
         if (extractedVmName == null) {
             Pattern diskPattern2 = Pattern.compile("/disks/([^/]+)_os_disk");
             Matcher diskMatcher2 = diskPattern2.matcher(lowerResourceId);
@@ -285,8 +288,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 4: Disks with _osdisk (no underscore after) ==========
-        // /disks/pap_osdisk
+        
+        
         if (extractedVmName == null) {
             Pattern diskPattern3 = Pattern.compile("/disks/([^/]+)_osdisk($|_)");
             Matcher diskMatcher3 = diskPattern3.matcher(lowerResourceId);
@@ -296,7 +299,7 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 5: Disks with _datadisk_ ==========
+        
         if (extractedVmName == null) {
             Pattern diskPattern4 = Pattern.compile("/disks/([^/]+)_datadisk_");
             Matcher diskMatcher4 = diskPattern4.matcher(lowerResourceId);
@@ -306,7 +309,7 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 6: Disks with _disk_ ==========
+        
         if (extractedVmName == null) {
             Pattern diskPattern5 = Pattern.compile("/disks/([^/]+)_disk_");
             Matcher diskMatcher5 = diskPattern5.matcher(lowerResourceId);
@@ -316,8 +319,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 7: Snapshots with _snapshot_ ==========
-        // /snapshots/cip_snapshot_22022025
+        
+        
         if (extractedVmName == null) {
             Pattern snapshotPattern1 = Pattern.compile("/snapshots/([^/]+)_snapshot_");
             Matcher snapshotMatcher1 = snapshotPattern1.matcher(lowerResourceId);
@@ -327,8 +330,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 8: Snapshots with _full_snapshot_ (FIXED - stops at _full_snapshot) ==========
-        // /snapshots/ltrms-externe_full_snapshot_06-02-2025
+        
+        
         if (extractedVmName == null) {
             Pattern snapshotPattern2 = Pattern.compile("/snapshots/([^/]+?)_full_snapshot_");
             Matcher snapshotMatcher2 = snapshotPattern2.matcher(lowerResourceId);
@@ -338,8 +341,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 9: Snapshots with -snapshot ==========
-        // /snapshots/npp-snapshot
+        
+        
         if (extractedVmName == null) {
             Pattern snapshotPattern3 = Pattern.compile("/snapshots/([^/]+)-snapshot");
             Matcher snapshotMatcher3 = snapshotPattern3.matcher(lowerResourceId);
@@ -349,8 +352,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 10: Azure Backup Snapshots with UUID ==========
-        // /snapshots/azurebackup_46404923-8921-48d2-a434-6f470b58f89d_2026-01-02...
+        
+        
         if (extractedVmName == null && lowerResourceId.contains("azurebackup_")) {
             Matcher uuidMatcher = UUID_PATTERN.matcher(lowerResourceId);
             if (uuidMatcher.find()) {
@@ -363,8 +366,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 11: Public IPs with -ip ==========
-        // /publicipaddresses/ltrms-externe-ip
+        
+        
         if (extractedVmName == null) {
             Pattern ipPattern = Pattern.compile("/public[iI][pP]Addresses/([^/]+)-ip");
             Matcher ipMatcher = ipPattern.matcher(lowerResourceId);
@@ -374,8 +377,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 12: Log Analytics with -loganalytics ==========
-        // /workspaces/pap-loganalytics
+        
+        
         if (extractedVmName == null) {
             Pattern laPattern = Pattern.compile("/workspaces/([^/]+)-loganalytics");
             Matcher laMatcher = laPattern.matcher(lowerResourceId);
@@ -385,14 +388,14 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 13: Network Security Groups with nsg-leoni-xxx ==========
-        // /networksecuritygroups/nsg-leoni-pap
+        
+        
         if (extractedVmName == null && lowerResourceId.contains("/networksecuritygroups/")) {
             Pattern nsgPattern = Pattern.compile("/networksecuritygroups/nsg-leoni-([^/]+)");
             Matcher nsgMatcher = nsgPattern.matcher(lowerResourceId);
             if (nsgMatcher.find()) {
                 String nsgName = nsgMatcher.group(1);
-                // Skip 'prod' as it's shared
+                
                 if (!"prod".equals(nsgName)) {
                     extractedVmName = nsgName;
                     log.debug("Pattern 7 (NSG): Found '{}'", extractedVmName);
@@ -400,8 +403,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 14: Network Interfaces with -nic ==========
-        // /networkInterfaces/ltrms-db-nic-001
+        
+        
         if (extractedVmName == null) {
             Pattern nicPattern = Pattern.compile("/network[iI]nterfaces/([^/]+)-nic");
             Matcher nicMatcher = nicPattern.matcher(lowerResourceId);
@@ -411,8 +414,8 @@ public class MonthlyCostSyncService {
             }
         }
 
-        // ========== PATTERN 15: Handle hyphen vs underscore (pap_serbia -> pap-serbia) ==========
-        // Convert underscores to hyphens for lookup
+        
+        
         if (extractedVmName != null && extractedVmName.contains("_")) {
             String withHyphens = extractedVmName.replace("_", "-");
             if (vmNameToIdCache.containsKey(withHyphens.toLowerCase())) {
@@ -450,6 +453,69 @@ public class MonthlyCostSyncService {
         }
 
         return null;
+    }
+
+    @Transactional
+    public MissingMonthsResponse syncMissingMonths(int startMonth, int startYear, int endMonth, int endYear) {
+        List<MonthResult> results = new ArrayList<>();
+
+        YearMonth start = YearMonth.of(startYear, startMonth);
+        YearMonth end = YearMonth.of(endYear, endMonth);
+
+        int monthsSynced = 0;
+        int monthsAlreadyPresent = 0;
+        int errors = 0;
+
+        YearMonth current = start;
+        while (!current.isAfter(end)) {
+            int year = current.getYear();
+            int month = current.getMonthValue();
+
+            boolean exists = monthlyCostRepository.existsByMonthAndYear(month, year);
+
+            if (exists) {
+                monthsAlreadyPresent++;
+                results.add(MonthResult.builder()
+                        .month(month)
+                        .year(year)
+                        .status("ALREADY_EXISTS")
+                        .message("Monthly costs already present for " + month + "/" + year)
+                        .build());
+                log.info("Month {}/{} already exists, skipping", year, month);
+            } else {
+                try {
+                    log.info("Syncing missing month {}/{}", year, month);
+                    String result = syncMonthlyCostsFromAzure(year, month);
+                    monthsSynced++;
+                    results.add(MonthResult.builder()
+                            .month(month)
+                            .year(year)
+                            .status("SYNCED")
+                            .message(result)
+                            .build());
+                    log.info("Successfully synced {}/{}", year, month);
+                } catch (Exception e) {
+                    errors++;
+                    results.add(MonthResult.builder()
+                            .month(month)
+                            .year(year)
+                            .status("ERROR")
+                            .message(e.getMessage())
+                            .build());
+                    log.error("Failed to sync {}/{}: {}", year, month, e.getMessage());
+                }
+            }
+
+            current = current.plusMonths(1);
+        }
+
+        return MissingMonthsResponse.builder()
+                .results(results)
+                .totalMonthsProcessed(results.size())
+                .monthsSynced(monthsSynced)
+                .monthsAlreadyPresent(monthsAlreadyPresent)
+                .errors(errors)
+                .build();
     }
 
     private String getResourceCategory(String resourceId, String serviceName) {

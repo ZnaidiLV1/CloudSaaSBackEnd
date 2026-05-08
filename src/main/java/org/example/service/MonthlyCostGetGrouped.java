@@ -214,9 +214,37 @@ public class  MonthlyCostGetGrouped{
                 }
             }
 
+            List<String> filteredMonths = new ArrayList<>();
+            List<Integer> filteredYearMonthList = new ArrayList<>();
+
+            for (int i = 0; i < monthsList.size(); i++) {
+                boolean hasAnyCost = false;
+                for (ServiceCostData service : servicesCosts) {
+                    if (service.getCosts().get(i) > 0) {
+                        hasAnyCost = true;
+                        break;
+                    }
+                }
+                if (hasAnyCost) {
+                    filteredMonths.add(monthsList.get(i));
+                    filteredYearMonthList.add(yearMonthList.get(i));
+                }
+            }
+
+            for (ServiceCostData service : servicesCosts) {
+                List<Double> originalCosts = service.getCosts();
+                List<Double> filteredCosts = new ArrayList<>();
+                for (int i = 0; i < originalCosts.size(); i++) {
+                    if (filteredYearMonthList.contains(yearMonthList.get(i))) {
+                        filteredCosts.add(originalCosts.get(i));
+                    }
+                }
+                service.setCosts(filteredCosts);
+            }
+
             return ServiceCostsResponse.builder()
                     .serviceNames(filteredServiceNames)
-                    .months(monthsList)
+                    .months(filteredMonths)
                     .services(servicesCosts)
                     .build();
 
@@ -245,9 +273,22 @@ public class  MonthlyCostGetGrouped{
                 }
             }
 
+            List<Double> costs = servicesCosts.get(0).getCosts();
+            List<String> filteredMonths = new ArrayList<>();
+            List<Double> filteredCosts = new ArrayList<>();
+
+            for (int i = 0; i < costs.size(); i++) {
+                if (costs.get(i) > 0) {
+                    filteredMonths.add(monthsList.get(i));
+                    filteredCosts.add(costs.get(i));
+                }
+            }
+
+            servicesCosts.get(0).setCosts(filteredCosts);
+
             return ServiceCostsResponse.builder()
                     .serviceNames(allServiceNames)
-                    .months(monthsList)
+                    .months(filteredMonths)
                     .services(servicesCosts)
                     .build();
         }

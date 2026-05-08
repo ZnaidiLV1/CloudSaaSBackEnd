@@ -2,6 +2,7 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.costDTOs.TotalCostForVmsResponse;
 import org.example.dto.invoiceVmCostDTOs.*;
 import org.example.service.MonthlyVmCostService;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -73,6 +74,21 @@ public class MonthlyVmCostResolver {
     ) {
         log.info("GraphQL Query: getMonthlyCostsByDateRange - vmId: {}, startDate: {}, endDate: {}", vmId, startDate, endDate);
         return monthlyVmCostService.getMonthlyCostsByDateRange(vmId, startDate, endDate);
+    }
+
+    @QueryMapping
+    public TotalCostForVmsResponse getTotalCostForVms(
+            @Argument List<Long> vmIds,
+            @Argument int startMonth,
+            @Argument int startYear,
+            @Argument int endMonth,
+            @Argument int endYear) {
+
+        log.info("GraphQL Query: getTotalCostForVms - vmIds: {}, start: {}/{}, end: {}/{}",
+                vmIds, startMonth, startYear, endMonth, endYear);
+
+        return monthlyVmCostService.getTotalCostForVms(
+                vmIds, startMonth, startYear, endMonth, endYear);
     }
 
 }

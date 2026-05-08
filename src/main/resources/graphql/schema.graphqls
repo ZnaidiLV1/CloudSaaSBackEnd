@@ -487,7 +487,48 @@ type DiskSizeAtTimeResponse {
     diskFreeGB: Float!
 }
 
-#  MUTATIONS
+type MissingMonthsResponse {
+    results: [MonthResult!]!
+    totalMonthsProcessed: Int!
+    monthsSynced: Int!
+    monthsAlreadyPresent: Int!
+    errors: Int!
+}
+
+type MonthResult {
+    month: Int!
+    year: Int!
+    status: String!
+    message: String!
+}
+
+type TotalCostForVmsResponse {
+    totalAmount: Float!
+    breakdown: [MonthlyBreakdown!]!
+    vmDetails: [VmCostDetail!]!
+}
+
+type MonthlyBreakdown {
+    month: String!
+    amount: Float!
+}
+
+type VmCostDetail {
+    vmId: ID!
+    vmName: String!
+    totalAmount: Float!
+}
+
+type VmDiskInfoDto {
+    vmName: String
+    workspaceName: String
+    diskFreePercent: Float
+    diskFreeMB: Float
+    diskFreeGB: Float
+    diskLastUpdated: String
+}
+
+    #  MUTATIONS
 type Mutation {
     # Auth
     login(email: String!, password: String!): AuthPayload!
@@ -534,6 +575,13 @@ type Mutation {
     syncBackupData: String!
 
     syncBackupHistoryLast30Days: String!
+
+    syncMissingMonthlyCosts(
+        startMonth: Int!
+        startYear: Int!
+        endMonth: Int!
+        endYear: Int!
+    ): MissingMonthsResponse!
 }
 
 #  QUERIES 
@@ -666,4 +714,14 @@ type Query {
     getAllBackupVaultsWithItems: [BackupVaultWithItems!]!
 
     getDiskSizeAtTime(vmName: String!, timestamp: String!): DiskSizeAtTimeResponse!
+
+    getTotalCostForVms(
+        vmIds: [ID!]!
+        startMonth: Int!
+        startYear: Int!
+        endMonth: Int!
+        endYear: Int!
+    ): TotalCostForVmsResponse!
+
+    getVmDiskInfoById(vmId: Int!): VmDiskInfoDto
 }

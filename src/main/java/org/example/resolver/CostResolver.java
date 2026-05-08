@@ -3,6 +3,7 @@ package org.example.resolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.SchedulerConfig;
+import org.example.dto.costDTOs.MissingMonthsResponse;
 import org.example.dto.costDTOs.ServiceCostsResponse;
 import org.example.dto.invoiceVmCostDTOs.CostByMeterDto;
 import org.example.dto.invoiceVmCostDTOs.CostByServiceDto;
@@ -66,5 +67,17 @@ public class CostResolver {
     ) {
         log.info("GraphQL query: getCostsByServiceName - startDate: {}, endDate: {}, serviceName: {}", startDate, endDate, serviceName);
         return monthlyCostGetGrouped.getCostsByServiceName(startDate, endDate, serviceName);
+    }
+
+    @MutationMapping
+    public MissingMonthsResponse syncMissingMonthlyCosts(
+            @Argument int startMonth,
+            @Argument int startYear,
+            @Argument int endMonth,
+            @Argument int endYear
+    ) {
+        log.info("GraphQL mutation: syncMissingMonthlyCosts from {}/{} to {}/{}",
+                startMonth, startYear, endMonth, endYear);
+        return monthlyCostSyncService.syncMissingMonths(startMonth, startYear, endMonth, endYear);
     }
 }

@@ -5,6 +5,8 @@ import com.azure.core.management.AzureEnvironment;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
+import com.azure.monitor.query.LogsQueryClient;
+import com.azure.monitor.query.LogsQueryClientBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
 import com.azure.resourcemanager.alertsmanagement.AlertsManagementManager;
 import com.azure.resourcemanager.billing.BillingManager;
@@ -100,5 +102,12 @@ public class AzureConfig {
             ClientSecretCredential credential,
             AzureProfile profile) {
         return DataProtectionManager.authenticate(credential, profile);
+    }
+
+    @Bean
+    public LogsQueryClient logsQueryClient(ClientSecretCredential credential) {
+        return new LogsQueryClientBuilder()
+                .credential(credential)
+                .buildClient();
     }
 }

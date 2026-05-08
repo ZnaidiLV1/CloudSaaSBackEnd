@@ -2,6 +2,9 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.costDTOs.MonthlyBreakdown;
+import org.example.dto.costDTOs.TotalCostForVmsResponse;
+import org.example.dto.costDTOs.VmCostDetail;
 import org.example.dto.invoiceVmCostDTOs.*;
 import org.example.entity.MonthlyCost;
 import org.example.entity.MonthlyVmCost;
@@ -352,18 +355,26 @@ public class MonthlyVmCostService {
                             (a, b) -> a
                     ));
 
-            List<Double> costValues = new ArrayList<>();
-            for (int ym : yearMonthList) {
+            List<String> filteredMonths = new ArrayList<>();
+            List<Double> filteredCosts = new ArrayList<>();
+
+            for (int i = 0; i < yearMonthList.size(); i++) {
+                int ym = yearMonthList.get(i);
                 BigDecimal cost = costMap.getOrDefault(ym, BigDecimal.ZERO);
-                costValues.add(cost.setScale(2, RoundingMode.HALF_UP).doubleValue());
+                double costValue = cost.setScale(2, RoundingMode.HALF_UP).doubleValue();
+
+                if (costValue > 0) {
+                    filteredMonths.add(monthsList.get(i));
+                    filteredCosts.add(costValue);
+                }
             }
 
             return MonthlyCostRangeResponseDto.builder()
                     .isAllVms(false)
                     .vmId(vmId)
                     .vmName(vm.getName())
-                    .months(monthsList)
-                    .costs(costValues)
+                    .months(filteredMonths)
+                    .costs(filteredCosts)
                     .build();
 
         } else {
@@ -384,30 +395,113 @@ public class MonthlyVmCostService {
                         .put(ym, cost.getTotalCost());
             }
 
+            List<String> filteredMonths = new ArrayList<>();
+            List<Integer> filteredYearMonthList = new ArrayList<>();
+
+            for (int i = 0; i < yearMonthList.size(); i++) {
+                int ym = yearMonthList.get(i);
+                boolean hasAnyCost = false;
+
+                for (Vm vm : allVms) {
+                    BigDecimal cost = costsByVmAndMonth
+                            .getOrDefault(vm.getId(), new HashMap<>())
+                            .getOrDefault(ym, BigDecimal.ZERO);
+                    if (cost.compareTo(BigDecimal.ZERO) > 0) {
+                        hasAnyCost = true;
+                        break;
+                    }
+                }
+
+                if (hasAnyCost) {
+                    filteredMonths.add(monthsList.get(i));
+                    filteredYearMonthList.add(ym);
+                }
+            }
+
             List<VmMonthlyCostData> vmCostsList = new ArrayList<>();
 
             for (Vm vm : allVms) {
                 Map<Integer, BigDecimal> vmCostMap = costsByVmAndMonth.getOrDefault(vm.getId(), new HashMap<>());
 
                 List<Double> costValues = new ArrayList<>();
-                for (int ym : yearMonthList) {
+                for (int ym : filteredYearMonthList) {
                     BigDecimal cost = vmCostMap.getOrDefault(ym, BigDecimal.ZERO);
                     costValues.add(cost.setScale(2, RoundingMode.HALF_UP).doubleValue());
                 }
 
-                vmCostsList.add(VmMonthlyCostData.builder()
-                        .vmId(vm.getId())
-                        .vmName(vm.getName())
-                        .costs(costValues)
-                        .build());
+                boolean hasNonZeroCost = costValues.stream().anyMatch(c -> c > 0);
+
+                if (hasNonZeroCost) {
+                    vmCostsList.add(VmMonthlyCostData.builder()
+                            .vmId(vm.getId())
+                            .vmName(vm.getName())
+                            .costs(costValues)
+                            .build());
+                }
             }
 
             return MonthlyCostRangeResponseDto.builder()
                     .isAllVms(true)
-                    .months(monthsList)
+                    .months(filteredMonths)
                     .vmCosts(vmCostsList)
                     .build();
         }
+    }
+
+    @Transactional(readOnly = true)
+    public TotalCostForVmsResponse getTotalCostForVms(
+            List<Long> vmIds,
+            int startMonth, int startYear,
+            int endMonth, int endYear) {
+
+        if (vmIds == null || vmIds.isEmpty()) {
+            return TotalCostForVmsResponse.builder()
+                    .totalAmount(0.0)
+                    .breakdown(new ArrayList<>())
+                    .vmDetails(new ArrayList<>())
+                    .build();
+        }
+
+        List<Object[]> monthlyResults = monthlyVmCostRepository.sumByMonths(
+                vmIds, startYear, startMonth, endYear, endMonth);
+
+        List<MonthlyBreakdown> breakdown = new ArrayList<>();
+        double totalAmount = 0.0;
+
+        for (Object[] row : monthlyResults) {
+            int year = (int) row[0];
+            int month = (int) row[1];
+            Double amount = ((Number) row[2]).doubleValue();
+
+            String monthString = String.format("%02d/%d", month, year);
+            breakdown.add(MonthlyBreakdown.builder()
+                    .month(monthString)
+                    .amount(amount)
+                    .build());
+            totalAmount += amount;
+        }
+
+        List<Object[]> vmResults = monthlyVmCostRepository.sumByVm(
+                vmIds, startYear, startMonth, endYear, endMonth);
+
+        List<VmCostDetail> vmDetails = new ArrayList<>();
+        for (Object[] row : vmResults) {
+            Long vmId = (Long) row[0];
+            String vmName = (String) row[1];
+            Double amount = ((Number) row[2]).doubleValue();
+
+            vmDetails.add(VmCostDetail.builder()
+                    .vmId(vmId)
+                    .vmName(vmName)
+                    .totalAmount(amount)
+                    .build());
+        }
+
+        return TotalCostForVmsResponse.builder()
+                .totalAmount(Math.round(totalAmount * 100.0) / 100.0)
+                .breakdown(breakdown)
+                .vmDetails(vmDetails)
+                .build();
     }
 
     @Transactional(readOnly = true)

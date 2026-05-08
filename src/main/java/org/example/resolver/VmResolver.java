@@ -2,6 +2,7 @@ package org.example.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.example.config.SchedulerConfig;
+import org.example.dto.VMDTOs.VmDiskInfoDto;
 import org.example.service.VmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,5 +59,9 @@ public class VmResolver {
         return true;
     }
 
+    @QueryMapping
+    public VmDiskInfoDto getVmDiskInfoById(@Argument Integer vmId) {
+        return vmService.getVmDiskInfoById(vmId.longValue());
+    }
 
 }

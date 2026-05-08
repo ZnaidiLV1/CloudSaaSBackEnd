@@ -48,4 +48,30 @@ public interface MonthlyVmCostRepository extends JpaRepository<MonthlyVmCost, Lo
 
     @Query("SELECT m FROM MonthlyVmCost m WHERE m.vm.id = :vmId ORDER BY m.year DESC, m.month DESC")
     List<MonthlyVmCost> findByVmIdOrderByYearMonthDesc(@Param("vmId") Long vmId);
+
+    @Query("SELECT mvc.year, mvc.month, SUM(mvc.totalCost) " +
+            "FROM MonthlyVmCost mvc " +
+            "WHERE mvc.vm.id IN :vmIds " +
+            "AND (mvc.year > :startYear OR (mvc.year = :startYear AND mvc.month >= :startMonth)) " +
+            "AND (mvc.year < :endYear OR (mvc.year = :endYear AND mvc.month <= :endMonth)) " +
+            "GROUP BY mvc.year, mvc.month " +
+            "ORDER BY mvc.year, mvc.month")
+    List<Object[]> sumByMonths(@Param("vmIds") List<Long> vmIds,
+                               @Param("startYear") int startYear,
+                               @Param("startMonth") int startMonth,
+                               @Param("endYear") int endYear,
+                               @Param("endMonth") int endMonth);
+
+    @Query("SELECT mvc.vm.id, mvc.vm.name, SUM(mvc.totalCost) " +
+            "FROM MonthlyVmCost mvc " +
+            "WHERE mvc.vm.id IN :vmIds " +
+            "AND (mvc.year > :startYear OR (mvc.year = :startYear AND mvc.month >= :startMonth)) " +
+            "AND (mvc.year < :endYear OR (mvc.year = :endYear AND mvc.month <= :endMonth)) " +
+            "GROUP BY mvc.vm.id, mvc.vm.name " +
+            "ORDER BY mvc.vm.name")
+    List<Object[]> sumByVm(@Param("vmIds") List<Long> vmIds,
+                           @Param("startYear") int startYear,
+                           @Param("startMonth") int startMonth,
+                           @Param("endYear") int endYear,
+                           @Param("endMonth") int endMonth);
 }
