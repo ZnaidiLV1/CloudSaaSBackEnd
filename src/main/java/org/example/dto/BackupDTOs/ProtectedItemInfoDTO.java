@@ -8,4 +8,13 @@ public class ProtectedItemInfoDTO {
     private String protectionStatus;
     private String vmName;
     private Long vmId;
+    private BackupSummaryDTO lastBackup;
+    private BackupSummaryDTO backup30DaysAgo;
+
+    @Data
+    public static class BackupSummaryDTO {
+        private String status;
+        private String startTime;
+        private String duration;
+    }
 }

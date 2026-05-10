@@ -268,8 +268,8 @@ public class BackupService {
     }
 
     public VmBackupHistoryResponse getVmBackupHistoryByDateRange(Long vmId, String startDate, String endDate) {
-        LocalDate start = parseDate(startDate);
-        LocalDate end = parseDate(endDate);
+        LocalDate start = parseDate(startDate).plusDays(1);
+        LocalDate end = parseDate(endDate).plusDays(1);
         LocalDateTime startDateTime = start.atStartOfDay();
         LocalDateTime endDateTime = end.atTime(23, 59, 59);
 
@@ -448,6 +448,7 @@ public class BackupService {
 
         return vaults.stream()
                 .map(this::convertToDTO)
+                .filter(dto -> dto.getProtectedItems() != null && !dto.getProtectedItems().isEmpty())
                 .collect(Collectors.toList());
     }
 
@@ -462,6 +463,7 @@ public class BackupService {
         List<ProtectedItem> items = protectedItemRepository.findByBackupVaultIdAndIsActiveTrue(vault.getId());
 
         List<ProtectedItemInfoDTO> itemDTOs = items.stream()
+                .filter(item -> "ProtectionConfigured".equals(item.getProtectionStatus()))
                 .map(this::convertItemToDTO)
                 .collect(Collectors.toList());
 
@@ -479,6 +481,34 @@ public class BackupService {
         if (item.getVm() != null) {
             dto.setVmName(item.getVm().getName());
             dto.setVmId(item.getVm().getId());
+        }
+
+        List<BackupJobHistory> jobs = backupJobHistoryRepository
+                .findByProtectedItemIdOrderByStartTimeDesc(item.getId());
+
+        if (!jobs.isEmpty()) {
+            BackupJobHistory lastJob = jobs.get(0);
+            ProtectedItemInfoDTO.BackupSummaryDTO lastBackup = new ProtectedItemInfoDTO.BackupSummaryDTO();
+            lastBackup.setStatus(lastJob.getStatus());
+            lastBackup.setStartTime(lastJob.getStartTime() != null ? lastJob.getStartTime().toString() : null);
+            lastBackup.setDuration(lastJob.getDuration());
+            dto.setLastBackup(lastBackup);
+
+            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+
+            BackupJobHistory backup30Days = jobs.stream()
+                    .filter(job -> job.getStartTime() != null &&
+                            job.getStartTime().toLocalDate().equals(LocalDateTime.now().minusDays(30).toLocalDate()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (backup30Days != null) {
+                ProtectedItemInfoDTO.BackupSummaryDTO backup30 = new ProtectedItemInfoDTO.BackupSummaryDTO();
+                backup30.setStatus(backup30Days.getStatus());
+                backup30.setStartTime(backup30Days.getStartTime() != null ? backup30Days.getStartTime().toString() : null);
+                backup30.setDuration(backup30Days.getDuration());
+                dto.setBackup30DaysAgo(backup30);
+            }
         }
 
         return dto;

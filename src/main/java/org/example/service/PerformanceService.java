@@ -188,12 +188,12 @@ public class PerformanceService {
         List<HourlyRamValue> hourlyRam = new ArrayList<>();
 
         for (PerformanceMetric metric : metrics) {
-            if (metric.getRamAvg() != null) {
+            if (metric.getRamMin() != null) {
                 String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
-                double ramAvailablePercentage = Math.round(toAvailableRamPercent(metric.getRamAvg()) * 100.0) / 100.0;
+                double usedRamPercentage = Math.round(toUsedRamPercent(metric.getRamMin()) * 100.0) / 100.0;
                 hourlyRam.add(HourlyRamValue.builder()
                         .hour(hour)
-                        .ramUsedPercentage(ramAvailablePercentage)
+                        .ramUsedPercentage(usedRamPercentage)
                         .build());
             }
         }
@@ -331,8 +331,8 @@ public class PerformanceService {
                     .date(date.format(DATE_FORMATTER))
                     .maxCpu(0.0)
                     .maxCpuTime("")
-                    .avgRamPercentage(0.0)
-                    .avgRamTime("")
+                    .maxUsedRamPercentage(0.0)
+                    .maxUsedRamTime("")
                     .build();
         }
 
@@ -341,37 +341,18 @@ public class PerformanceService {
                 .max(Comparator.comparing(PerformanceMetric::getCpuMax, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        List<PerformanceMetric> validRamMetrics = metrics.stream()
-                .filter(m -> m.getRamAvg() != null)
-                .toList();
-
-        double avgRamPercentage = 0.0;
-        String avgRamTime = "";
-
-        if (!validRamMetrics.isEmpty()) {
-            double totalAvailableRamPercentage = 0.0;
-            for (PerformanceMetric metric : validRamMetrics) {
-                totalAvailableRamPercentage += toAvailableRamPercent(metric.getRamAvg());
-            }
-            avgRamPercentage = Math.round((totalAvailableRamPercentage / validRamMetrics.size()) * 100.0) / 100.0;
-
-            PerformanceMetric avgRamMetric = validRamMetrics.get(validRamMetrics.size() / 2);
-            avgRamTime = avgRamMetric.getSavedAt() != null
-                    ? avgRamMetric.getSavedAt().format(TIME_FORMATTER)
-                    : "";
-        }
-
         PerformanceMetric minRamMetric = metrics.stream()
                 .filter(m -> m.getRamMin() != null)
                 .min(Comparator.comparing(PerformanceMetric::getRamMin, Comparator.nullsLast(Double::compareTo)))
                 .orElse(null);
 
-        double minAvailableRamPercentage = 0.0;
-        String minAvailableRamTime = "";
+        double maxUsedRamPercentage = 0.0;
+        String maxUsedRamTime = "";
 
         if (minRamMetric != null && minRamMetric.getRamMin() != null) {
-            minAvailableRamPercentage = Math.round(toAvailableRamPercent(minRamMetric.getRamMin()) * 100.0) / 100.0;
-            minAvailableRamTime = minRamMetric.getSavedAt() != null
+            double usedRamGB = TOTAL_RAM_GB - minRamMetric.getRamMin();
+            maxUsedRamPercentage = Math.round((usedRamGB / TOTAL_RAM_GB) * 100 * 100.0) / 100.0;
+            maxUsedRamTime = minRamMetric.getSavedAt() != null
                     ? minRamMetric.getSavedAt().format(TIME_FORMATTER)
                     : "";
         }
@@ -380,8 +361,40 @@ public class PerformanceService {
                 .date(date.format(DATE_FORMATTER))
                 .maxCpu(maxCpuMetric != null && maxCpuMetric.getCpuMax() != null ? maxCpuMetric.getCpuMax() : 0.0)
                 .maxCpuTime(maxCpuMetric != null && maxCpuMetric.getSavedAt() != null ? maxCpuMetric.getSavedAt().format(TIME_FORMATTER) : "")
-                .avgRamPercentage(avgRamPercentage)
-                .avgRamTime(avgRamTime)
+                .maxUsedRamPercentage(maxUsedRamPercentage)
+                .maxUsedRamTime(maxUsedRamTime)
+                .build();
+    }
+
+    public VmDailyMetricsResponse getVmDailyMetrics(Long vmId, String date) {
+        LocalDate targetDate = parseDate(date);
+        LocalDateTime startOfDay = targetDate.atStartOfDay();
+        LocalDateTime endOfDay = targetDate.atTime(LocalTime.MAX);
+
+        Vm vm = vmRepository.findById(vmId)
+                .orElseThrow(() -> new RuntimeException("VM not found with id: " + vmId));
+
+        List<PerformanceMetric> metrics = metricRepository.findByVmIdAndSavedAtBetweenOrderBySavedAtAsc(vmId, startOfDay, endOfDay);
+
+        List<HourlyMetricsValue> hourlyMetrics = new ArrayList<>();
+
+        for (PerformanceMetric metric : metrics) {
+            String hour = metric.getSavedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
+
+            hourlyMetrics.add(HourlyMetricsValue.builder()
+                    .hour(hour)
+                    .networkIn(metric.getNetworkIn() != null ? metric.getNetworkIn() : 0.0)
+                    .networkOut(metric.getNetworkOut() != null ? metric.getNetworkOut() : 0.0)
+                    .diskRead(metric.getDiskRead() != null ? metric.getDiskRead() : 0.0)
+                    .diskWrite(metric.getDiskWrite() != null ? metric.getDiskWrite() : 0.0)
+                    .build());
+        }
+
+        return VmDailyMetricsResponse.builder()
+                .vmId(vmId)
+                .vmName(vm.getName())
+                .date(targetDate.format(DATE_FORMATTER))
+                .hourlyMetrics(hourlyMetrics)
                 .build();
     }
 

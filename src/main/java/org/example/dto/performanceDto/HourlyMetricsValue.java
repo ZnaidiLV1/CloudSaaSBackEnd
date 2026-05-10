@@ -9,10 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DailyPerformance {
-    private String date;
-    private Double maxCpu;
-    private String maxCpuTime;
-    private Double maxUsedRamPercentage;
-    private String maxUsedRamTime;
+public class HourlyMetricsValue {
+    private String hour;
+    private Double networkIn;
+    private Double networkOut;
+    private Double diskRead;
+    private Double diskWrite;
 }

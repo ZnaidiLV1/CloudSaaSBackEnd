@@ -4,15 +4,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DailyPerformance {
+public class VmDailyMetricsResponse {
+    private Long vmId;
+    private String vmName;
     private String date;
-    private Double maxCpu;
-    private String maxCpuTime;
-    private Double maxUsedRamPercentage;
-    private String maxUsedRamTime;
+    private List<HourlyMetricsValue> hourlyMetrics;
 }
+

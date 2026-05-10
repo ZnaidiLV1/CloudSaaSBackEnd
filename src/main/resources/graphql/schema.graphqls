@@ -209,8 +209,8 @@ type DailyPerformance {
     date: String!
     maxCpu: Float!
     maxCpuTime: String!
-    avgRamPercentage: Float!
-    avgRamTime: String!
+    maxUsedRamPercentage: Float!
+    maxUsedRamTime: String!
 }
 
 type VmPerformanceResponse {
@@ -463,19 +463,27 @@ type VmBackupHistoryResponse {
     disks: [DiskBackupHistory!]!
 }
 
-type BackupVaultWithItems {
-    vaultName: String!
-    resourceGroup: String!
-    location: String!
-    storageType: String!
-    protectedItems: [ProtectedItemInfo!]!
+type BackupSummary {
+    status: String!
+    startTime: String!
+    duration: String
 }
 
 type ProtectedItemInfo {
     dataSourceName: String!
     protectionStatus: String!
     vmName: String
-    vmId: Int
+    vmId: ID
+    lastBackup: BackupSummary
+    backup30DaysAgo: BackupSummary
+}
+
+type BackupVaultWithItems {
+    vaultName: String!
+    resourceGroup: String!
+    location: String!
+    storageType: String!
+    protectedItems: [ProtectedItemInfo!]!
 }
 
 type DiskSizeAtTimeResponse {
@@ -526,6 +534,21 @@ type VmDiskInfoDto {
     diskFreeMB: Float
     diskFreeGB: Float
     diskLastUpdated: String
+}
+
+type HourlyMetricsValue {
+    hour: String!
+    networkIn: Float!
+    networkOut: Float!
+    diskRead: Float!
+    diskWrite: Float!
+}
+
+type VmDailyMetricsResponse {
+    vmId: ID!
+    vmName: String!
+    date: String!
+    hourlyMetrics: [HourlyMetricsValue!]!
 }
 
     #  MUTATIONS
@@ -724,4 +747,6 @@ type Query {
     ): TotalCostForVmsResponse!
 
     getVmDiskInfoById(vmId: Int!): VmDiskInfoDto
+
+    getVmDailyMetrics(vmId: ID!, date: String!): VmDailyMetricsResponse!
 }

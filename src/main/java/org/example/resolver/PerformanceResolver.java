@@ -75,4 +75,12 @@ public class PerformanceResolver {
     ) {
         return performanceService.getVmMetricTotal(vmId, startDate, endDate, metricType);
     }
+
+    @QueryMapping
+    public VmDailyMetricsResponse getVmDailyMetrics(
+            @Argument Long vmId,
+            @Argument String date
+    ) {
+        return performanceService.getVmDailyMetrics(vmId, date);
+    }
 }
