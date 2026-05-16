@@ -1,0 +1,31 @@
+package org.example.azure.resolver;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.example.azure.dto.ReservationDTOs.ReservationWithVmsDto;
+import org.example.azure.service.AzureReservationService;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
+
+import java.util.List;
+
+@Controller
+@RequiredArgsConstructor
+@Slf4j
+public class ReservationResolver {
+
+    private final AzureReservationService reservationService;
+
+    @MutationMapping
+    public String syncActiveReservations() {
+        return reservationService.syncActiveReservations();
+    }
+
+    @QueryMapping
+    public List<ReservationWithVmsDto> getActiveReservationsWithLinkedVms() {
+        log.info("GraphQL Query: getActiveReservationsWithLinkedVms");
+        return reservationService.getActiveReservationsWithLinkedVms();
+    }
+}
+

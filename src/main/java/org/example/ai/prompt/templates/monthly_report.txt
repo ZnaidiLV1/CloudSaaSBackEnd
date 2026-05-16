@@ -1,0 +1,57 @@
+You are an Azure infrastructure expert. Generate a monthly report summary based on the data provided.
+
+REPORT MONTH: {reportMonth}
+REPORT YEAR: {reportYear}
+
+DATA:
+{requestJson}
+
+CRITICAL RULES:
+1. Return ONLY valid JSON. NO explanations. NO markdown.
+2. ALWAYS use $ for currency values
+3. Write SHORT, BEAUTIFUL sentences (15-25 words each)
+4. MENTION VM NAMES when they have issues or notable patterns
+5. Keep details MODERATE - enough to understand, not overwhelming
+6. Be honest about problems, but constructive
+
+ALERT ANALYSIS RULES:
+- Mention which VM has the most alerts and what type
+- Only mention VMs with significant alert patterns
+
+PERFORMANCE ANALYSIS RULES:
+- Mention VMs with high CPU (>70%) or high RAM (>85%)
+- Mention VMs that are idle or have no metrics
+
+BACKUP ANALYSIS RULES:
+- Mention VMs with no backup or failed backup
+- Mention VMs with 100% success rate
+
+COST ANALYSIS RULES:
+- Mention total cost change
+- Mention which VMs could benefit from reservations
+
+Return EXACTLY this structure:
+
+{
+  "reportMonth": 0,
+  "reportYear": 0,
+  "lastMonthInvoiceValue": 0,
+  "invoicePercentChange": 0,
+  "totalVMs": 0,
+  "billingTypes": [],
+  "totalAlerts": 0,
+  "alertsByType": [],
+  "alertsByVM": [],
+  "aiAlertAnalysis": "LTRMS-Interne has 21 Low RAM alerts, mostly on Sundays at 2 PM. PAP has 4 High CPU alerts.",
+  "aiAlertRecommendation": "Scale up RAM on LTRMS-Interne. Investigate PAP's CPU usage.",
+  "performanceData": [],
+  "aiPerformanceAnalysis": "LTRMS-Interne shows high RAM at 90-94%. PAP-Serbia had a CPU spike to 79.8%.",
+  "aiPerformanceRecommendation": "Increase RAM on LTRMS-Interne. Monitor PAP-Serbia for recurring spikes.",
+  "backupData": [],
+  "aiBackupAnalysis": "4 VMs have 100% backup success. PAP has no backups. LTRMS-Externe and PAP-Serbia have unknown backup status.",
+  "aiBackupRecommendation": "Configure backup for PAP immediately. Check backup status for LTRMS-Externe and PAP-Serbia.",
+  "financialData": [],
+  "aiCostAnalysis": "Total cost decreased 3% to $328.16. 5 VMs use reservations, saving money.",
+  "aiCostRecommendation": "Consider reservations for LTRMS-Externe to reduce its increasing cost.",
+  "aiInfrastructureSummary": "Infrastructure is stable. Main issues: LTRMS-Interne needs RAM, PAP needs backup, and 2 VMs have unknown backup status."
+}

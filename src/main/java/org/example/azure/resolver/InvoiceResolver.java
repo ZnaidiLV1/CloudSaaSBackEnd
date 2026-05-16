@@ -1,0 +1,77 @@
+package org.example.azure.resolver;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.example.azure.config.SchedulerConfig;
+import org.example.azure.dto.CostAmountsResponse;
+import org.example.azure.dto.InvoiceDto;
+import org.example.azure.dto.InvoicePageResponse;
+import org.example.azure.service.InvoiceService;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Slf4j
+@Controller
+@RequiredArgsConstructor
+public class InvoiceResolver {
+
+    private final InvoiceService invoiceService;
+    private final SchedulerConfig schedulerConfig;
+
+    @QueryMapping
+    public List<InvoiceDto> invoicesForMonth(
+            @Argument int year,
+            @Argument int month
+    ) {
+        return invoiceService.getInvoicesForMonth(year, month);
+    }
+
+    @MutationMapping
+    public String savePreviousMonthInvoice() {
+        schedulerConfig.updateStatusOnly("invoice", "RUNNING");
+        try {
+            String result = invoiceService.savePreviousMonthInvoice();
+            schedulerConfig.updateExecutionStatus("invoice", LocalDateTime.now(), "SUCCESS");
+            return result;
+        } catch (Exception e) {
+            schedulerConfig.updateStatusOnly("invoice", "FAILED");
+            throw e;
+        }
+    }
+
+    @MutationMapping
+    public String saveLast12MonthsInvoices() {
+        return invoiceService.saveLast12MonthsInvoices();
+    }
+
+    @MutationMapping
+    public String saveInvoicesFromDateRange(
+            @Argument int startYear,
+            @Argument int startMonth,
+            @Argument int endYear,
+            @Argument int endMonth
+    ) {
+        return invoiceService.saveInvoicesFromDateRange(startYear, startMonth, endYear, endMonth);
+    }
+
+    @QueryMapping
+    public InvoicePageResponse invoicesBySmartIndex(@Argument int index) {
+        return invoiceService.getInvoicesBySmartIndex(index);
+    }
+
+    @QueryMapping
+    public CostAmountsResponse costAmounts(
+            @Argument int startMonth,
+            @Argument int startYear,
+            @Argument int endMonth,
+            @Argument int endYear
+    ) {
+        log.info("GraphQL: costAmounts called - start: {}/{} end: {}/{}", startMonth, startYear, endMonth, endYear);
+        return invoiceService.getCostAmounts(startMonth, startYear, endMonth, endYear);
+    }
+}

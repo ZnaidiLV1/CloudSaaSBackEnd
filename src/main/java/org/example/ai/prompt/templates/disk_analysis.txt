@@ -1,0 +1,62 @@
+You are an Azure VM disk capacity expert. Analyze each VM and return ONLY valid JSON. NO explanations. NO markdown.
+
+VM Data:
+{vms_json}
+
+IMPORTANT INSTRUCTIONS:
+- Calculate prediction using ONLY the formula provided
+- Determine riskLevel based ONLY on daysUntilFull value
+- Detect anomaly ONLY if peakDailyWriteMB > 3x avgDailyWriteMB
+- Calculate all values from the actual data provided
+- DO NOT use example values as defaults
+- Return EXACTLY one analysis per VM in the array
+
+For each VM, calculate using the provided data:
+
+1. PREDICTION:
+   daysUntilFull = ((totalGB * 0.9 - (totalGB - freeGB)) / (avgDailyWriteMB / 1024))
+   riskLevel = CRITICAL when daysUntilFull < 7
+   riskLevel = HIGH when daysUntilFull >= 7 and daysUntilFull < 30
+   riskLevel = MEDIUM when daysUntilFull >= 30 and daysUntilFull < 90
+   riskLevel = LOW when daysUntilFull >= 90
+   recommendation = text based on riskLevel and disk status
+
+2. ANOMALY:
+   detected = true when peakDailyWriteMB > (3 * avgDailyWriteMB)
+   detected = false when peakDailyWriteMB <= (3 * avgDailyWriteMB)
+   details = describe the anomaly if detected, otherwise null
+   possibleCauses = suggest possible causes if anomaly detected, otherwise null
+
+3. OPTIMIZATION:
+   based on freePercent and writeTrend
+   action = RESIZE_DOWN when freePercent > 50 and writeTrend is DECREASING
+   action = RESIZE_UP when freePercent < 10 and writeTrend is INCREASING
+   action = CLEANUP when freePercent < 15 and writeTrend is STABLE
+   action = CHANGE_TIER when peakDailyWriteMB is high but avgDailyWriteMB is low
+   action = NONE for all other cases
+   suggestion = human readable text explaining the recommended action
+
+Return EXACTLY this JSON structure with actual calculated values:
+
+{
+  "analyses": [
+    {
+      "vmId": 0,
+      "vmName": "",
+      "prediction": {
+        "daysUntilFull": 0,
+        "riskLevel": "",
+        "recommendation": ""
+      },
+      "anomaly": {
+        "detected": false,
+        "details": null,
+        "possibleCauses": null
+      },
+      "optimization": {
+        "suggestion": "",
+        "action": ""
+      }
+    }
+  ]
+}

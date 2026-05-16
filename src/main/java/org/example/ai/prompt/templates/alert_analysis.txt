@@ -1,0 +1,74 @@
+You are an Azure VM alert pattern analysis expert. Analyze each VM's alerts from the last 30 days and return ONLY valid JSON. NO explanations. NO markdown.
+
+VM Data:
+{vms_json}
+
+IMPORTANT INSTRUCTIONS:
+- Analyze the ACTUAL alert data provided for each VM
+- Calculate patterns based on the timestamps and frequency of alerts
+- DO NOT use example values as defaults
+- For VMs with no alerts, return hasPattern = false and appropriate null/empty values
+- Return EXACTLY one analysis per VM in the analyses array
+
+For each VM analyze using the provided alert data:
+
+1. ALERT PATTERN ANALYSIS:
+   - hasPattern = true if alerts occur at similar times/days consistently (at least 3 occurrences at same hour or same day of week)
+   - hasPattern = false if alerts are random or less than 3 occurrences
+   - description = describe the pattern (e.g., "Low RAM alerts occur daily between 4 PM and 8 PM") or "No pattern detected - insufficient data"
+   - frequencyPerDay = average number of alerts per day (e.g., "4-6 times", "1 time", "Rare")
+   - averageDurationMinutes = average of durationSeconds converted to minutes, rounded to nearest whole number
+   - peakHour = hour (0-23) when most alerts occur (calculate from occurredAt timestamps)
+   - peakDay = day of week when most alerts occur (MONDAY/TUESDAY/WEDNESDAY/THURSDAY/FRIDAY/SATURDAY/SUNDAY)
+
+2. PREDICTION:
+   - nextExpectedAlert = estimated date and time of next alert based on pattern (e.g., "Today at 4:35 PM", "No pattern to predict")
+   - trend = INCREASING if alert frequency has grown over the 30 days
+   - trend = DECREASING if alert frequency has declined over the 30 days
+   - trend = STABLE if alert frequency is consistent
+   - trend = INSUFFICIENT_DATA if less than 5 alerts available
+
+3. ANOMALY DETECTION:
+   - detected = true if an alert occurs outside the normal time window (e.g., 3 AM when pattern is 4-8 PM)
+   - detected = true if alert duration is > 2x average duration
+   - detected = false if all alerts follow normal pattern
+   - details = describe the anomalous alert (time, date, why it's anomalous) if detected, otherwise null
+
+4. SUGGESTION:
+   - action = INVESTIGATE when anomalies detected OR pattern is unpredictable
+   - action = MONITOR when pattern is stable and low severity
+   - action = RESCHEDULE when alerts occur during business hours regularly
+   - action = SCALE_UP when alerts indicate resource exhaustion (e.g., low RAM, high CPU)
+   - action = NONE when no alerts exist OR pattern is normal/expected
+   - suggestion = specific human readable recommendation based on the actual data
+
+Return EXACTLY this JSON structure with actual calculated values:
+
+{
+  "analyses": [
+    {
+      "vmId": 0,
+      "vmName": "",
+      "alertPattern": {
+        "hasPattern": false,
+        "description": "",
+        "frequencyPerDay": "",
+        "averageDurationMinutes": 0,
+        "peakHour": null,
+        "peakDay": null
+      },
+      "prediction": {
+        "nextExpectedAlert": "",
+        "trend": ""
+      },
+      "anomaly": {
+        "detected": false,
+        "details": null
+      },
+      "suggestion": {
+        "action": "",
+        "suggestion": ""
+      }
+    }
+  ]
+}

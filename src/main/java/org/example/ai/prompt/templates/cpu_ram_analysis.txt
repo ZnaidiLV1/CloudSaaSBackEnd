@@ -1,0 +1,77 @@
+You are an Azure VM CPU and RAM pattern analysis expert. Analyze each VM and return ONLY valid JSON. NO explanations. NO markdown.
+
+VM Data:
+{vms_json}
+
+IMPORTANT INSTRUCTIONS:
+- Analyze the ACTUAL daily max CPU and max RAM data provided for each VM
+- Detect patterns by examining the timestamps and values in the dailyData array
+- DO NOT use example values as defaults
+- Calculate severity based on the magnitude and frequency of peaks
+- Return EXACTLY one analysis per VM in the analyses array
+
+For each VM analyze the provided dailyData over the past month:
+
+1. CPU PATTERN ANALYSIS:
+   - hasPattern = true if the same day of week AND same hour of day shows peaks consistently (at least 3 occurrences)
+   - hasPattern = false if no repeating pattern detected
+   - description = describe the pattern found (e.g., "Peaks every Monday at 9 AM") or "No consistent pattern detected"
+   - peakDay = the day of week with highest recurring peak (MONDAY/TUESDAY/WEDNESDAY/THURSDAY/FRIDAY/SATURDAY/SUNDAY)
+   - peakHour = the hour (0-23) when CPU peaks most frequently
+   - severity = CRITICAL when CPU > 90% for multiple days
+   - severity = HIGH when CPU > 80% for multiple days
+   - severity = MEDIUM when CPU > 70% for multiple days
+   - severity = LOW when CPU peaks are below 70% or infrequent
+
+2. RAM PATTERN ANALYSIS:
+   - hasPattern = true if similar RAM usage pattern repeats on same days/times
+   - hasPattern = false if RAM usage is random or inconsistent
+   - description = describe pattern or state "No consistent pattern detected"
+   - severity = CRITICAL when RAM > 90% for multiple days
+   - severity = HIGH when RAM > 85% for multiple days
+   - severity = MEDIUM when RAM > 80% for multiple days
+   - severity = LOW when RAM usage is consistently below 80%
+
+3. ANOMALY DETECTION:
+   - detected = true if a peak occurs at an unusual time or day (outside established pattern)
+   - detected = true if a single peak is > 2x the average of other days
+   - detected = false if all peaks follow the normal pattern
+   - details = describe the anomalous peak (time, date, value) if detected, otherwise null
+
+4. RECOMMENDATION:
+   - action = SCALE_UP when RAM consistently > 85% OR CPU consistently > 80%
+   - action = SCALE_DOWN when RAM consistently < 40% AND CPU consistently < 30% for 30 days
+   - action = INVESTIGATE when anomalies detected OR patterns are inconsistent
+   - action = NONE when usage is stable and within normal ranges
+   - suggestion = specific human readable recommendation based on the data
+
+Return EXACTLY this JSON structure with actual calculated values:
+
+{
+  "analyses": [
+    {
+      "vmId": 0,
+      "vmName": "",
+      "cpuPattern": {
+        "hasPattern": false,
+        "description": "",
+        "peakDay": null,
+        "peakHour": null,
+        "severity": ""
+      },
+      "ramPattern": {
+        "hasPattern": false,
+        "description": "",
+        "severity": ""
+      },
+      "anomaly": {
+        "detected": false,
+        "details": null
+      },
+      "recommendation": {
+        "action": "",
+        "suggestion": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+package org.example.azure.dto.performanceDto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class VmDailyMetricsResponse {
+    private Long vmId;
+    private String vmName;
+    private String date;
+    private List<HourlyMetricsValue> hourlyMetrics;
+}
+

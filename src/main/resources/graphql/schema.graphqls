@@ -551,6 +551,155 @@ type VmDailyMetricsResponse {
     hourlyMetrics: [HourlyMetricsValue!]!
 }
 
+type AIDiskAnalysis {
+    id: ID!
+    vmId: ID!
+    vmName: String!
+    daysUntilFull: Int
+    riskLevel: String
+    predictionRecommendation: String
+    anomalyDetected: Boolean
+    anomalyDetails: String
+    anomalyPossibleCauses: String
+    optimizationSuggestion: String
+    estimatedSavingsMonthly: Float
+    optimizationAction: String
+    createdAt: String!
+}
+
+type AICpuRamAnalysis {
+    id: ID!
+    vmId: Int!
+    vmName: String!
+    cpuHasPattern: Boolean!
+    cpuPatternDescription: String
+    cpuPeakDay: String
+    cpuPeakHour: Int
+    cpuSeverity: String
+    ramHasPattern: Boolean!
+    ramPatternDescription: String
+    ramSeverity: String
+    anomalyDetected: Boolean!
+    anomalyDetails: String
+    recommendationAction: String!
+    recommendationSuggestion: String
+    createdAt: String!
+}
+
+type AIAlertAnalysis {
+    id: ID
+    vmId: ID
+    vmName: String
+    alertHasPattern: Boolean
+    alertPatternDescription: String
+    frequencyPerDay: String
+    averageDurationMinutes: Int
+    peakHour: Int
+    peakDay: String
+    predictionNextAlert: String
+    predictionTrend: String
+    anomalyDetected: Boolean
+    anomalyDetails: String
+    suggestionAction: String
+    suggestionText: String
+    createdAt: String
+}
+
+type AIInvoiceAnalysis {
+    id: ID!
+    summary: String!
+    year2024To2025Change: Float
+    projected2026Total: Float
+    year2025To2026ProjectedChange: Float
+    lastTwoMonthsAnalysis: String!
+    peakMonthName: String
+    lowestMonthName: String
+    averageMonthlyCost: Float
+    seasonality: String
+    predictionAnalysis: String!
+    anomaliesDetected: Boolean!
+    anomaliesDetails: String
+    recommendationAction: String!
+    recommendationSuggestion: String!
+    createdAt: String!
+}
+
+type AICostAnalysis {
+    id: ID!
+    summary: String!
+    previousMonth: String
+    previousMonthTotal: Float
+    currentMonth: String
+    currentMonthTotal: Float
+    monthOverMonthChange: Float
+    monthOverMonthDirection: String
+    mainDriverService: String
+    serviceBreakdownJson: String
+    topDriver: String
+    fastestGrowing: String
+    anomaliesJson: String
+    predictedNextMonth: String
+    predictedTotal: Float
+    predictedChangePercent: Float
+    predictedDirection: String
+    predictionConfidence: String
+    recommendationAction: String!
+    recommendationSuggestion: String!
+    createdAt: String!
+}
+
+type AIVmCostAnalysis {
+    id: ID!
+    vmId: Int!
+    vmName: String!
+    summary: String!
+    previousMonth: String
+    currentMonth: String
+    monthOverMonthChange: Float
+    monthOverMonthDirection: String
+    changeCause: String
+    averageMonthly: Float
+    peakMonth: String
+    lowestMonth: String
+    trend: String
+    reservationSavingsPercent: Float
+    sharedCostPercent: Float
+    predictedNextMonth: String
+    predictedTotal: Float
+    predictedChangePercent: Float
+    predictedDirection: String
+    predictionConfidence: String
+    recommendationAction: String!
+    recommendationSuggestion: String!
+    createdAt: String!
+}
+
+type AIMonthlyReport {
+    id: ID!
+    reportMonth: Int!
+    reportYear: Int!
+    lastMonthInvoiceValue: Float
+    invoicePercentChange: Int
+    totalVMs: Int
+    billingTypes: String
+    totalAlerts: Int
+    alertsByType: String
+    alertsByVM: String
+    aiAlertAnalysis: String
+    aiAlertRecommendation: String
+    performanceData: String
+    aiPerformanceAnalysis: String
+    aiPerformanceRecommendation: String
+    backupData: String
+    aiBackupAnalysis: String
+    aiBackupRecommendation: String
+    financialData: String
+    aiCostAnalysis: String
+    aiCostRecommendation: String
+    aiInfrastructureSummary: String
+    createdAt: String!
+}
+
     #  MUTATIONS
 type Mutation {
     # Auth
@@ -605,6 +754,21 @@ type Mutation {
         endMonth: Int!
         endYear: Int!
     ): MissingMonthsResponse!
+
+    #AI Mutations Disk
+    analyzeAllVmsDisks: String!
+
+    analyzeAllVmsCpuRam: String!
+
+    analyzeInvoices: String!
+
+    analyzeCosts: String!
+
+    analyzeAlertsForVm(vmId: Int!): String!
+
+    analyzeAllVmsAlerts: String!
+
+    generateMonthlyReport(year: Int!, month: Int!): String!
 }
 
 #  QUERIES 
@@ -749,4 +913,22 @@ type Query {
     getVmDiskInfoById(vmId: Int!): VmDiskInfoDto
 
     getVmDailyMetrics(vmId: ID!, date: String!): VmDailyMetricsResponse!
+
+    getDiskAnalysis(vmId: ID!): AIDiskAnalysis
+
+    getCpuRamAnalysis(vmId: ID!): AICpuRamAnalysis
+
+    getAlertAnalysis(vmId: Int!): [AIAlertAnalysis]!
+
+    getLatestInvoiceAnalysis: AIInvoiceAnalysis
+
+    getLatestCostAnalysis: AICostAnalysis
+
+    getVmCostAnalysis(vmId: ID!): AIVmCostAnalysis
+    getAllVmCostAnalyses: [AIVmCostAnalysis]
+
+    getMonthlyReportByMonthAndYear(year: Int!, month: Int!): AIMonthlyReport
+
+    testOpenRouter(message: String!): String!
+
 }

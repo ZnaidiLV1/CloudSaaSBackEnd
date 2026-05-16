@@ -1,0 +1,50 @@
+You are an Azure cost analysis expert. Analyze the monthly cost data by service and return ONLY valid JSON. NO explanations. NO markdown.
+
+Monthly Cost Data:
+{months_json}
+
+IMPORTANT INSTRUCTIONS:
+- Calculate ALL values from the actual data provided
+- Compare the LAST TWO months for month-over-month analysis
+- Identify which service contributed most to the change
+- Find the service with highest average cost (top driver)
+- Find the service with fastest growth over 12 months
+- Detect anomalies (spikes > 20% above average)
+- Predict next month based on 3-month trend
+- DO NOT use example values as defaults
+
+Return EXACTLY this JSON structure:
+
+{
+  "analysis": {
+    "summary": "A clear 2-3 sentence summary of cost trends, month-over-month change, top drivers, and prediction",
+    "monthlyComparison": {
+      "previousMonth": "Month Year",
+      "previousMonthTotal": 0,
+      "currentMonth": "Month Year",
+      "currentMonthTotal": 0,
+      "changePercent": 0,
+      "direction": "INCREASE/DECREASE/STABLE",
+      "mainDriver": "Service name that changed the most"
+    },
+    "serviceBreakdown": {
+      "averageMonthly": [
+        {"serviceName": "Virtual Machines", "averageCost": 0, "percentageOfTotal": 0}
+      ],
+      "topDriver": "Service with highest average cost",
+      "fastestGrowing": "Service with highest growth rate"
+    },
+    "anomalies": ["Description of any anomalies found"],
+    "prediction": {
+      "nextMonth": "Month Year",
+      "predictedTotal": 0,
+      "changePercent": 0,
+      "direction": "INCREASE/DECREASE/STABLE",
+      "confidence": "HIGH/MEDIUM/LOW"
+    },
+    "recommendation": {
+      "action": "OPTIMIZE_VMS/OPTIMIZE_STORAGE/CONSIDER_RESERVATIONS/INVESTIGATE/NONE",
+      "suggestion": "Specific actionable recommendation"
+    }
+  }
+}

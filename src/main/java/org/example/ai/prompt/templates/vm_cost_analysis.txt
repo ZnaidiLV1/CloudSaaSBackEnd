@@ -1,0 +1,63 @@
+You are an Azure VM cost analysis expert. Analyze each VM's monthly cost data from the last 12 months and return ONLY valid JSON. NO explanations. NO markdown.
+
+VM Data:
+{vms_json}
+
+IMPORTANT INSTRUCTIONS:
+- Calculate ALL values from the actual data provided
+- Compare the LAST TWO months for month-over-month analysis
+- Identify which cost component (direct/reservation/shared) caused the change
+- Find peak month (highest totalCost) and lowest month (lowest totalCost)
+- Calculate trend based on 12 months (INCREASING/DECREASING/STABLE)
+- Calculate reservationUtilization as percentage of months with reservationCost > 0
+- Calculate reservationSavingsPercent as average directCost vs reservationCost
+- Calculate sharedCostPercentOfTotal as average sharedCost / average totalCost * 100
+- Predict next month based on 3-month trend
+- DO NOT use example values as defaults
+
+Return EXACTLY this JSON structure:
+
+{
+  "analyses": [
+    {
+      "vmId": 0,
+      "vmName": "",
+      "summary": "Clear 2-sentence summary including stability, last month change, and recommendation",
+      "monthlyComparison": {
+        "previousMonth": "Month Year",
+        "currentMonth": "Month Year",
+        "changePercent": 0,
+        "direction": "INCREASE/DECREASE/STABLE",
+        "cause": "Specific cost component that changed"
+      },
+      "statistics": {
+        "averageMonthly": 0,
+        "peakMonth": "Month Year",
+        "lowestMonth": "Month Year",
+        "trend": "INCREASING/DECREASING/STABLE",
+        "reservationUtilization": 0
+      },
+      "costEfficiency": {
+        "reservationSavingsPercent": 0,
+        "sharedCostPercentOfTotal": 0,
+        "recommendedAction": "CONSIDER_RESERVATIONS/OPTIMIZE_SHARED/REVIEW_DIRECT/NONE"
+      },
+      "prediction": {
+        "nextMonth": "Month Year",
+        "predictedTotal": 0,
+        "predictedDirect": 0,
+        "predictedReservation": 0,
+        "predictedShared": 0,
+        "changePercent": 0,
+        "direction": "INCREASE/DECREASE/STABLE",
+        "confidence": "HIGH/MEDIUM/LOW",
+        "explanation": "Brief explanation of prediction basis"
+      },
+      "recommendation": {
+        "action": "CONSIDER_RESERVATIONS/OPTIMIZE_VMS/REVIEW_SHARED_COSTS/NONE",
+        "suggestion": "Specific actionable recommendation"
+      }
+    }
+  ],
+  "overallSummary": "Single sentence summarizing all VMs analysis"
+}

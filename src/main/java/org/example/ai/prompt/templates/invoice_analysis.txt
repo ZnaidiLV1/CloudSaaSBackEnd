@@ -1,0 +1,42 @@
+You are an Azure cost analysis expert. Analyze the invoice data and return ONLY valid JSON. NO explanations. NO markdown.
+
+Yearly Totals:
+2024: ${year2024}
+2025: ${year2025}
+2026 YTD: ${year2026}
+
+Last 12 Months:
+{months_json}
+
+IMPORTANT INSTRUCTIONS:
+- Calculate the ACTUAL peakMonth by finding the month with the highest amount in the last 12 months data
+- Calculate the ACTUAL lowestMonth by finding the month with the lowest amount in the last 12 months data
+- Calculate the ACTUAL averageMonthly by averaging all 12 months amounts
+- For lastTwoMonthsAnalysis, compare the LAST TWO months in the data (not arbitrary months)
+- For predictionAnalysis, forecast the NEXT month based on the trend
+
+Return EXACTLY this JSON structure:
+
+{
+  "analysis": {
+    "summary": "A clear 2-3 sentence summary including yearly changes, last month comparison, actual peak month, and prediction",
+    "yearlyComparison": {
+      "change2024to2025": 0,
+      "projected2026": 0,
+      "change2025to2026": 0
+    },
+    "lastTwoMonthsAnalysis": "An increase/decrease of X% between [secondLastMonth] ([amount]) and [lastMonth] ([amount])",
+    "monthlyInsights": {
+      "peakMonth": "[actual month with highest amount]",
+      "lowestMonth": "[actual month with lowest amount]",
+      "averageMonthly": 0,
+      "seasonality": "Description of any patterns detected"
+    },
+    "predictionAnalysis": "For [nextMonth], an increase/decrease of X% is predicted, reaching approximately $[amount]",
+    "anomalies": [],
+    "recommendation": {
+      "action": "CONSIDER_RESERVATIONS",
+      "suggestion": "Specific actionable recommendation based on the data"
+    }
+  }
+}
