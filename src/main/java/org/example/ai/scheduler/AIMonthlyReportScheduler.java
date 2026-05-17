@@ -7,6 +7,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+
 @Component
 @RequiredArgsConstructor
 @EnableScheduling
@@ -14,12 +16,18 @@ import org.springframework.stereotype.Component;
 public class AIMonthlyReportScheduler {
     private final AIMonthlyReportService monthlyReportService;
 
-    @Scheduled(cron = "0 0 10 1 * *")
+    @Scheduled(cron = "0 0 10 10 * *")
     public void runMonthlyReportGeneration() {
         log.info("Starting monthly report generation");
         try {
-            //monthlyReportService.generateMonthlyReport();
-            log.info("Monthly report generation completed successfully");
+            LocalDate today = LocalDate.now();
+            LocalDate previousMonth = today.minusMonths(1);
+            int year = previousMonth.getYear();
+            int month = previousMonth.getMonthValue();
+
+            log.info("Generating report for {}-{}", year, month);
+            monthlyReportService.generateMonthlyReport(year, month);
+            log.info("Monthly report generation completed successfully for {}-{}", year, month);
         } catch (Exception e) {
             log.error("Monthly report generation failed: {}", e.getMessage());
         }

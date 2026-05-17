@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 public class AIInvoiceScheduler {
     private final AIInvoiceAnalysisService invoiceAnalysisService;
 
-    @Scheduled(cron = "0 0 14 1 * *")
+    @Scheduled(cron = "0 0 14 10 * *")
     public void runMonthlyInvoiceAnalysis() {
         log.info("Starting monthly invoice analysis");
         try {
