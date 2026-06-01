@@ -1,4 +1,4 @@
-package org.example.azure.dto;
+package org.example.azure.dto.authDTOs;
 
 import lombok.*;
 

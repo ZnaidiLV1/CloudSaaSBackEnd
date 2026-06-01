@@ -152,13 +152,13 @@ public class AICpuRamAnalysisService {
         List<BatchCpuRamRequestDTO.VmCpuRamData> vmDataList = new ArrayList<>();
 
         LocalDateTime endDate = LocalDateTime.now();
-        LocalDateTime startDate = endDate.minusDays(30);
+        LocalDateTime startDate = endDate.minusDays(15);
 
         for (Vm vm : vms) {
             List<PerformanceMetric> metrics = getMetricsForDateRange(vm.getId(), startDate, endDate);
 
             if (metrics.isEmpty()) {
-                log.warn("VM {} has no metrics in last 30 days, skipping", vm.getName());
+                log.warn("VM {} has no metrics in last 15 days, skipping", vm.getName());
                 continue;
             }
 

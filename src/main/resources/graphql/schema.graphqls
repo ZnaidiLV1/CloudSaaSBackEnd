@@ -700,6 +700,47 @@ type AIMonthlyReport {
     createdAt: String!
 }
 
+type UserSummaryDTO {
+    email: String!
+    role: String!
+}
+
+type TroubleshootResponseDto {
+    id: ID!
+    vmId: Float!
+    summary: String!
+    severity: String!
+    action: String!
+    createdAt: String!
+    stoppedAt: String
+    components: ComponentsDto!
+}
+
+type ComponentsDto {
+    spring_boot: ComponentDetailDto
+    syslog: ComponentDetailDto
+    pm2: ComponentDetailDto
+    nginx: ComponentDetailDto
+    postgresql: ComponentDetailDto
+    system: SystemDetailDto
+}
+
+type ComponentDetailDto {
+    status: String
+    details: String
+    suggestion: String
+}
+
+type SystemDetailDto {
+    uptime: String
+    memory: String
+    disk: String
+    cpu: String
+    network: String
+    status: String
+    details: String
+    suggestion: String
+}
     #  MUTATIONS
 type Mutation {
     # Auth
@@ -710,6 +751,7 @@ type Mutation {
     forgetPassword(email: String!): AuthPayload!
     verifyResetOtp(email: String!, otp: String!): AuthPayload!
     resetPassword(email: String!, otp: String!, newPassword: String!): AuthPayload!
+    changeUserRole(targetUserEmail: String!, newRole: String!): String!
     logout: AuthPayload!
 
     # Azure Sync
@@ -764,11 +806,16 @@ type Mutation {
 
     analyzeCosts: String!
 
+    analyzeAllVmCosts: String!
+
     analyzeAlertsForVm(vmId: Int!): String!
 
     analyzeAllVmsAlerts: String!
 
     generateMonthlyReport(year: Int!, month: Int!): String!
+
+    saveTroubleshootData: String!
+    saveBulkTroubleshootData(limit: Int): String!
 }
 
 #  QUERIES 
@@ -776,6 +823,7 @@ type Query {
     # Auth
     me: User!
     getAllUsers: [UserPayload!]!
+    getAllUsersExceptMe: [UserSummaryDTO]
 
     # Azure
     azureResources: [String]
@@ -931,4 +979,4 @@ type Query {
 
     testOpenRouter(message: String!): String!
 
-}
+    getTroubleshootByDateAndVmId(date: String!, vmId: Int!): [TroubleshootResponseDto!]!}

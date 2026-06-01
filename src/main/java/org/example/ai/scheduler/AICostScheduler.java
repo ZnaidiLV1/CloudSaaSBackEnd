@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 public class AICostScheduler {
     private final AICostAnalysisService costAnalysisService;
 
-    @Scheduled(cron = "0 0 15 1 * *")
+    @Scheduled(cron = "0 0 15 12 * *")
     public void runMonthlyCostAnalysis() {
         log.info("Starting monthly cost analysis");
         try {

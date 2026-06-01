@@ -1,10 +1,11 @@
 package org.example.azure.service;
 
 import lombok.RequiredArgsConstructor;
-import org.example.azure.dto.AuthPayload;
+import org.example.azure.dto.authDTOs.AuthPayload;
 import org.example.azure.dto.CreationPayload;
 import org.example.azure.dto.UserPayload;
 
+import org.example.azure.dto.authDTOs.UserSummaryDTO;
 import org.example.azure.entity.BlacklistedToken;
 import org.example.azure.entity.User;
 import org.example.azure.enums.Role;
@@ -229,5 +230,50 @@ public class AuthService {
         userRepository.save(user);
 
         return new AuthPayload(null, null, email, "Password reset successfully. You can now login.");
+    }
+
+    public List<UserSummaryDTO> getAllUsersExceptCurrent(String currentUserEmail) {
+        return userRepository.findAll().stream()
+                .filter(user -> !user.getEmail().equals(currentUserEmail))
+                .map(user -> new UserSummaryDTO(user.getEmail(), user.getRole().name()))
+                .collect(Collectors.toList());
+    }
+
+    public String changeUserRole(String adminEmail, String targetUserEmail, String newRole) {
+        User admin = userRepository.findByEmail(adminEmail)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+
+        User targetUser = userRepository.findByEmail(targetUserEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (adminEmail.equals(targetUserEmail)) {
+            throw new RuntimeException("Cannot change your own role");
+        }
+
+        Role adminRole = admin.getRole();
+        Role requestedRole;
+
+        try {
+            requestedRole = Role.valueOf(newRole.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid role. Valid roles: SUPER_ADMIN, MANAGER, TECHNICAL, FINANCE");
+        }
+
+        if (adminRole == Role.SUPER_ADMIN) {
+            targetUser.setRole(requestedRole);
+            userRepository.save(targetUser);
+            return "Role changed successfully";
+        }
+
+        if (adminRole == Role.MANAGER) {
+            if (requestedRole == Role.SUPER_ADMIN || requestedRole == Role.MANAGER) {
+                throw new RuntimeException("MANAGER can only change roles to TECHNICAL or FINANCE");
+            }
+            targetUser.setRole(requestedRole);
+            userRepository.save(targetUser);
+            return "Role changed successfully";
+        }
+
+        throw new RuntimeException("You don't have permission to change roles");
     }
 }

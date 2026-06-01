@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 public class AIVmCostScheduler {
     private final AIVmCostAnalysisService vmCostAnalysisService;
 
-    @Scheduled(cron = "0 0 16 10 * *")
+    @Scheduled(cron = "0 0 16 12 * *")
     public void runMonthlyVmCostAnalysis() {
         log.info("Starting monthly VM cost analysis for all VMs");
         try {

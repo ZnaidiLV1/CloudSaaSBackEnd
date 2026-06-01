@@ -2,10 +2,12 @@ package org.example.azure.resolver;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.example.azure.dto.AuthPayload;
+import lombok.extern.slf4j.Slf4j;
+import org.example.azure.dto.authDTOs.AuthPayload;
 import org.example.azure.dto.CreationPayload;
 import org.example.azure.dto.UserPayload;
 
+import org.example.azure.dto.authDTOs.UserSummaryDTO;
 import org.example.azure.entity.User;
 import org.example.azure.repository.UserRepository;
 import org.example.azure.service.AuthService;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Controller;
 
 import java.util.List;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class AuthResolver {
@@ -84,5 +87,17 @@ public class AuthResolver {
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
+    @QueryMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER')")
+    public List<UserSummaryDTO> getAllUsersExceptMe() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return authService.getAllUsersExceptCurrent(auth.getName());
+    }
 
+    @MutationMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER')")
+    public String changeUserRole(@Argument String targetUserEmail, @Argument String newRole) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return authService.changeUserRole(auth.getName(), targetUserEmail, newRole);
+    }
 }

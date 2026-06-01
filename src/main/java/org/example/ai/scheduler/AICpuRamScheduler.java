@@ -14,14 +14,14 @@ import org.springframework.stereotype.Component;
 public class AICpuRamScheduler {
     private final AICpuRamAnalysisService cpuRamAnalysisService;
 
-    @Scheduled(cron = "0 0 12 1 * *")
+    @Scheduled(cron = "0 0 12 */15 * *")
     public void runMonthlyCpuRamAnalysis() {
-        log.info("Starting monthly CPU/RAM analysis for all VMs");
+        log.info("Starting 15-day CPU/RAM analysis for all VMs");
         try {
             cpuRamAnalysisService.analyzeAllVmsCpuRam();
-            log.info("Monthly CPU/RAM analysis completed successfully");
+            log.info("15-day CPU/RAM analysis completed successfully");
         } catch (Exception e) {
-            log.error("Monthly CPU/RAM analysis failed: {}", e.getMessage());
+            log.error("15-day CPU/RAM analysis failed: {}", e.getMessage());
         }
     }
 }

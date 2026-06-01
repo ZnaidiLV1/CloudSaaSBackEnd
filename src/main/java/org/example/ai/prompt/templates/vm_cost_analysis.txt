@@ -10,10 +10,52 @@ IMPORTANT INSTRUCTIONS:
 - Find peak month (highest totalCost) and lowest month (lowest totalCost)
 - Calculate trend based on 12 months (INCREASING/DECREASING/STABLE)
 - Calculate reservationUtilization as percentage of months with reservationCost > 0
-- Calculate reservationSavingsPercent as average directCost vs reservationCost
+- Calculate reservationSavingsPercent as (average directCost - average reservationCost) / average directCost * 100 (only if both > 0, otherwise 0)
 - Calculate sharedCostPercentOfTotal as average sharedCost / average totalCost * 100
-- Predict next month based on 3-month trend
+- Predict next month based on 3-month trend using linear regression or average of changes
 - DO NOT use example values as defaults
+
+RECOMMENDATION RULES (CRITICAL - Follow strictly):
+
+1. CONSIDER_RESERVATIONS action ONLY if ALL of these are true:
+   - Average monthly total cost >= $30
+   - Trend is INCREASING or STABLE (NOT DECREASING)
+   - Reservation utilization is 0% (no existing reservation)
+   - Monthly costs show consistent usage pattern (not sporadic)
+
+2. OPTIMIZE_VMS action when:
+   - Shared cost percent of total > 15%
+   - OR shared cost is primary driver of month-over-month changes
+
+3. REVIEW_SHARED_COSTS action when:
+   - Direct cost is primary driver of cost changes
+   - AND average monthly total cost >= $20
+
+4. NONE action when ANY of these are true:
+   - Average monthly total cost < $15 (VM is low usage or shutdown)
+   - Reservation utilization > 0% (already has reservation, no change needed)
+   - Trend is DECREASING (costs already going down naturally)
+   - Monthly costs show no clear pattern with high variance
+
+RECOMMENDATION SUGGESTIONS (Use exact phrases):
+
+For NONE (low cost < $15):
+"VM has minimal monthly cost under $15. No cost optimization needed. Consider decommissioning if VM is no longer required."
+
+For NONE (already reserved):
+"VM already has active reservation coverage ({reservationUtilization}% of months). Continue monitoring usage for potential downsizing."
+
+For NONE (decreasing trend):
+"VM costs are naturally decreasing month-over-month. No action required; continue monitoring."
+
+For CONSIDER_RESERVATIONS:
+"VM shows consistent monthly usage averaging ${averageMonthly}/month with no existing reservation. Consider 1-year or 3-year reserved instance to reduce direct costs by up to 40-60%."
+
+For OPTIMIZE_VMS:
+"Shared costs represent {sharedCostPercentOfTotal}% of total monthly spend. Investigate shared cost allocation and identify opportunities to reduce or optimize shared resource usage."
+
+For REVIEW_SHARED_COSTS:
+"Direct costs are the primary cost driver. Analyze VM workload patterns and consider rightsizing, moving to lower-cost region, or optimizing resource utilization."
 
 Return EXACTLY this JSON structure:
 
@@ -22,13 +64,13 @@ Return EXACTLY this JSON structure:
     {
       "vmId": 0,
       "vmName": "",
-      "summary": "Clear 2-sentence summary including stability, last month change, and recommendation",
+      "summary": "Clear 2-sentence summary including 12-month stability/trend, last month change, and action taken",
       "monthlyComparison": {
         "previousMonth": "Month Year",
         "currentMonth": "Month Year",
         "changePercent": 0,
         "direction": "INCREASE/DECREASE/STABLE",
-        "cause": "Specific cost component that changed"
+        "cause": "Specific cost component that changed (directCost/reservationCost/sharedCost)"
       },
       "statistics": {
         "averageMonthly": 0,
@@ -51,13 +93,13 @@ Return EXACTLY this JSON structure:
         "changePercent": 0,
         "direction": "INCREASE/DECREASE/STABLE",
         "confidence": "HIGH/MEDIUM/LOW",
-        "explanation": "Brief explanation of prediction basis"
+        "explanation": "Brief explanation of prediction basis (e.g., Based on 3-month average change of X%)"
       },
       "recommendation": {
         "action": "CONSIDER_RESERVATIONS/OPTIMIZE_VMS/REVIEW_SHARED_COSTS/NONE",
-        "suggestion": "Specific actionable recommendation"
+        "suggestion": "Specific actionable recommendation following the exact phrase templates above"
       }
     }
   ],
-  "overallSummary": "Single sentence summarizing all VMs analysis"
+  "overallSummary": "Single sentence summarizing overall cost health across all VMs"
 }

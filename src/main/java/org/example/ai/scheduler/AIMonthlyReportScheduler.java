@@ -16,7 +16,7 @@ import java.time.LocalDate;
 public class AIMonthlyReportScheduler {
     private final AIMonthlyReportService monthlyReportService;
 
-    @Scheduled(cron = "0 0 10 10 * *")
+    @Scheduled(cron = "0 0 10 12 * *")
     public void runMonthlyReportGeneration() {
         log.info("Starting monthly report generation");
         try {
